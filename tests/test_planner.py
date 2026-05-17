@@ -103,3 +103,51 @@ class TestGeneratePlan:
         user_msg = [m for m in messages if m["role"] == "user"][0]
         assert "YouTube" not in user_msg["content"]
         assert "Recommended Places" not in user_msg["content"]
+
+    @patch("app.planner.generator._get_client")
+    def test_generate_plan_default_review_truncation(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _mock_response("Plan")
+
+        long_text = "A" * 500
+        reviews = [
+            {
+                "name": "Test",
+                "rating": 4.5,
+                "address": "Addr",
+                "reviews": [{"rating": 5, "text": long_text}] * 5,
+            }
+        ]
+        generate_plan("Istanbul", 500, 3, review_results=reviews)
+        call_kwargs = mock_client.chat.completions.create.call_args
+        messages = call_kwargs.kwargs.get("messages") or call_kwargs[1].get("messages")
+        user_msg = [m for m in messages if m["role"] == "user"][0]
+        assert long_text[:300] in user_msg["content"]
+        assert long_text[:301] not in user_msg["content"]
+        review_lines = [line for line in user_msg["content"].split("\n") if "Review" in line and "5/5" in line]
+        assert len(review_lines) == 3
+
+    @patch("app.planner.generator._get_client")
+    def test_generate_plan_custom_review_truncation(self, mock_get_client):
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _mock_response("Plan")
+
+        long_text = "B" * 500
+        reviews = [
+            {
+                "name": "Test",
+                "rating": 4.5,
+                "address": "Addr",
+                "reviews": [{"rating": 5, "text": long_text}] * 5,
+            }
+        ]
+        generate_plan("Istanbul", 500, 3, review_results=reviews, max_reviews_per_place=2, max_review_length=50)
+        call_kwargs = mock_client.chat.completions.create.call_args
+        messages = call_kwargs.kwargs.get("messages") or call_kwargs[1].get("messages")
+        user_msg = [m for m in messages if m["role"] == "user"][0]
+        assert long_text[:50] in user_msg["content"]
+        assert long_text[:51] not in user_msg["content"]
+        review_lines = [line for line in user_msg["content"].split("\n") if "Review" in line and "5/5" in line]
+        assert len(review_lines) == 2

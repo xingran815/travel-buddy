@@ -20,6 +20,21 @@ def cli(ctx, lang):
         run_main_menu()
 
 
+def _parse_types(types_str: str | None) -> list[str] | None:
+    if not types_str:
+        return None
+    return [t.strip() for t in types_str.split(",") if t.strip()]
+
+
+def _parse_location(location_str: str | None) -> tuple[float, float] | None:
+    if not location_str:
+        return None
+    parts = location_str.split(",")
+    if len(parts) != 2:
+        raise click.BadParameter("Location must be 'lat,lng' format")
+    return (float(parts[0].strip()), float(parts[1].strip()))
+
+
 @cli.command()
 @click.argument("url")
 @click.pass_context
@@ -61,14 +76,37 @@ def summarize(ctx, url):
 @cli.command()
 @click.argument("region")
 @click.option("--type", "place_type", default="restaurant", help="Place type (restaurant, museum, etc.)")
+@click.option("--types", default=None, help="Comma-separated place types for diverse results (e.g. restaurant,tourist_attraction)")
 @click.option("--top", default=5, help="Number of recommendations")
+@click.option("--max-pages", default=1, help="Number of Google Places pages to fetch (1-3)")
+@click.option("--min-price", default=None, type=int, help="Min price level (1-4)")
+@click.option("--max-price", default=None, type=int, help="Max price level (1-4)")
+@click.option("--budget", default=None, type=float, help="Budget in USD (auto-derives max price)")
+@click.option("--location", default=None, help="Center point as 'lat,lng' for radius search")
+@click.option("--radius", default=None, type=int, help="Search radius in meters (requires --location)")
+@click.option("--no-details", is_flag=True, help="Skip detail fetching (faster, no reviews)")
 @click.pass_context
-def recommend(ctx, region, place_type, top):
+def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details):
     lang = ctx.obj["lang"]
     click.echo(t("welcome", lang))
     click.echo(t("fetching_reviews", lang, region=region))
 
-    results = recommend_places(region, place_type=place_type, top_n=top)
+    parsed_types = _parse_types(types)
+    parsed_location = _parse_location(location)
+
+    results = recommend_places(
+        region,
+        place_type=place_type,
+        place_types=parsed_types,
+        top_n=top,
+        max_pages=max_pages,
+        min_price=min_price,
+        max_price=max_price,
+        budget=budget,
+        location=parsed_location,
+        radius=radius,
+        include_details=not no_details,
+    )
     click.echo(t("reviews_done", lang, count=len(results)))
 
     click.echo()
@@ -85,6 +123,8 @@ def recommend(ctx, region, place_type, top):
             click.echo(f"   {'Top reviews' if lang == 'en' else 'Yorumlar'}:")
             for rev in r["reviews"][:3]:
                 click.echo(f"     - {rev['author']} ({rev['rating']}/5): {rev['text'][:80]}...")
+        if r.get("score"):
+            click.echo(f"   Score: {r['score']}")
 
 
 @cli.command()
@@ -94,9 +134,15 @@ def recommend(ctx, region, place_type, top):
 @click.option("--preferences", default="", help="Comma-separated preferences (e.g. history,food)")
 @click.option("--url", default=None, help="YouTube video URL for destination info")
 @click.option("--place-type", default="restaurant", help="Place type for recommendations")
+@click.option("--types", default=None, help="Comma-separated place types for diverse recommendations")
 @click.option("--top", default=5, help="Number of place recommendations to include")
+@click.option("--max-pages", default=1, help="Number of Google Places pages to fetch")
+@click.option("--min-price", default=None, type=int, help="Min price level (1-4)")
+@click.option("--max-price", default=None, type=int, help="Max price level (1-4)")
+@click.option("--location", default=None, help="Center point as 'lat,lng' for radius search")
+@click.option("--radius", default=None, type=int, help="Search radius in meters (requires --location)")
 @click.pass_context
-def plan(ctx, region, budget, days, preferences, url, place_type, top):
+def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius):
     lang = ctx.obj["lang"]
     click.echo(t("welcome", lang))
 
@@ -121,7 +167,21 @@ def plan(ctx, region, budget, days, preferences, url, place_type, top):
         click.echo(youtube_summary)
 
     click.echo(t("fetching_reviews", lang, region=region))
-    review_results = recommend_places(region, place_type=place_type, top_n=top)
+    parsed_types = _parse_types(types)
+    parsed_location = _parse_location(location)
+
+    review_results = recommend_places(
+        region,
+        place_type=place_type,
+        place_types=parsed_types,
+        top_n=top,
+        max_pages=max_pages,
+        min_price=min_price,
+        max_price=max_price,
+        budget=budget,
+        location=parsed_location,
+        radius=radius,
+    )
     click.echo(t("reviews_done", lang, count=len(review_results)))
 
     click.echo(t("generating_plan", lang))

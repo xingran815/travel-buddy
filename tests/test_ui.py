@@ -10,7 +10,7 @@ from app.ui.display import (
     show_info,
     show_success,
 )
-from app.ui.menu import run_summarize, run_recommend, run_plan, run_settings, _is_quit
+from app.ui.menu import run_summarize, run_recommend, run_plan, run_settings, _is_quit, _ask_place_types
 
 
 class TestDisplay:
@@ -109,14 +109,15 @@ class TestMenuSummarize:
 
 class TestMenuRecommend:
     @patch("app.ui.menu.recommend_places", return_value=[])
+    @patch("app.ui.menu._ask_place_types", return_value=["restaurant"])
     @patch("app.ui.menu.questionary.select")
     @patch("app.ui.menu.questionary.text")
-    def test_run_recommend_with_region(self, mock_text, mock_select, mock_rec):
-        mock_text.return_value.ask.return_value = "Istanbul"
-        mock_select.side_effect = [
-            MagicMock(ask=MagicMock(return_value="Restaurant")),
-            MagicMock(ask=MagicMock(return_value="5")),
+    def test_run_recommend_with_region(self, mock_text, mock_select, mock_types, mock_rec):
+        mock_text.side_effect = [
+            MagicMock(ask=MagicMock(return_value="Istanbul")),
+            MagicMock(ask=MagicMock(return_value="")),
         ]
+        mock_select.return_value = MagicMock(ask=MagicMock(return_value="5"))
         run_recommend("en")
 
     @patch("app.ui.menu.questionary.text")
@@ -140,9 +141,9 @@ class TestMenuRecommend:
 class TestMenuPlan:
     @patch("app.ui.menu.generate_plan", return_value="Travel plan...")
     @patch("app.ui.menu.recommend_places", return_value=[])
-    @patch("app.ui.menu.questionary.select")
+    @patch("app.ui.menu._ask_place_types", return_value=None)
     @patch("app.ui.menu.questionary.text")
-    def test_run_plan_without_url(self, mock_text, mock_select, mock_rec, mock_plan):
+    def test_run_plan_without_url(self, mock_text, mock_types, mock_rec, mock_plan):
         mock_text.side_effect = [
             MagicMock(ask=MagicMock(return_value="Istanbul")),
             MagicMock(ask=MagicMock(return_value="500")),
@@ -150,7 +151,6 @@ class TestMenuPlan:
             MagicMock(ask=MagicMock(return_value="history")),
             MagicMock(ask=MagicMock(return_value="")),
         ]
-        mock_select.return_value.ask.return_value = "Skip"
         run_plan("en")
 
     @patch("app.ui.menu.questionary.text")

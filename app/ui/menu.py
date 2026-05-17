@@ -17,6 +17,31 @@ from app.reviews.checker import recommend_places
 from app.planner.generator import generate_plan
 
 
+PLACE_TYPE_CHOICES = [
+    ("Restaurant", "restaurant"),
+    ("Cafe", "cafe"),
+    ("Museum", "museum"),
+    ("Hotel", "lodging"),
+    ("Tourist Attraction", "tourist_attraction"),
+    ("Bar", "bar"),
+]
+
+
+def _localized_type_choices(lang: str):
+    labels = {
+        "Restaurant": ("Restaurant" if lang == "en" else "Restoran"),
+        "Cafe": ("Cafe" if lang == "en" else "Kafe"),
+        "Museum": ("Museum" if lang == "en" else "Müze"),
+        "Hotel": ("Hotel" if lang == "en" else "Otel"),
+        "Tourist Attraction": ("Tourist Attraction" if lang == "en" else "Turistik Yer"),
+        "Bar": ("Bar" if lang == "en" else "Bar"),
+    }
+    result = []
+    for display, value in PLACE_TYPE_CHOICES:
+        result.append((labels[display], value))
+    return result
+
+
 def _is_quit(answer) -> bool:
     return answer is not None and answer.strip().lower() == "q"
 
@@ -26,6 +51,41 @@ def _prompt_continue(lang: str = "tr"):
     answer = questionary.text(msg, default="").ask()
     if _is_quit(answer):
         raise SystemExit(0)
+
+
+def _ask_place_types(lang: str = "tr") -> list[str] | None:
+    choices = _localized_type_choices(lang)
+    display_names = [c[0] for c in choices]
+
+    single_label = "Single type" if lang == "en" else "Tek tür"
+    multi_label = "Multiple types" if lang == "en" else "Birden fazla tür"
+    skip_label = "Skip" if lang == "en" else "Atla"
+
+    mode = questionary.select(
+        t("select_type_mode", lang),
+        choices=[single_label, multi_label, skip_label],
+    ).ask()
+    if mode is None or mode == skip_label:
+        return None
+
+    value_map = {c[0]: c[1] for c in choices}
+
+    if mode == single_label:
+        selected = questionary.select(
+            t("select_place_type", lang),
+            choices=display_names,
+        ).ask()
+        if selected is None:
+            return None
+        return [value_map[selected]]
+    else:
+        selected = questionary.checkbox(
+            t("select_place_types", lang),
+            choices=display_names,
+        ).ask()
+        if not selected:
+            return None
+        return [value_map[s] for s in selected]
 
 
 def run_summarize(lang: str = "tr"):
@@ -68,22 +128,9 @@ def run_recommend(lang: str = "tr"):
     if _is_quit(region) or not region:
         return
 
-    type_choices = [
-        ("Restaurant" if lang == "en" else "Restoran", "restaurant"),
-        ("Cafe" if lang == "en" else "Kafe", "cafe"),
-        ("Museum" if lang == "en" else "Müze", "museum"),
-        ("Hotel" if lang == "en" else "Otel", "lodging"),
-        ("Tourist Attraction" if lang == "en" else "Turistik Yer", "tourist_attraction"),
-        ("Bar" if lang == "en" else "Bar", "bar"),
-    ]
-    display_names = [c[0] for c in type_choices]
-    selected = questionary.select(
-        "Place type:" if lang == "en" else "Yer türü:",
-        choices=display_names,
-    ).ask()
-    if selected is None:
+    place_types = _ask_place_types(lang)
+    if place_types is None:
         return
-    place_type = dict(zip(display_names, [c[1] for c in type_choices]))[selected]
 
     count_choices = ["3", "5", "10"]
     top_str = questionary.select(
@@ -94,8 +141,22 @@ def run_recommend(lang: str = "tr"):
         return
     top_n = int(top_str)
 
+    budget_str = questionary.text(
+        "Budget in USD (enter to skip):" if lang == "en" else "Bütçe USD (atlamak için Enter):",
+        default="",
+    ).ask()
+    if _is_quit(budget_str):
+        return
+    budget = float(budget_str) if budget_str else None
+
     show_info(t("fetching_reviews", lang, region=region))
-    results = recommend_places(region, place_type=place_type, top_n=top_n)
+    results = recommend_places(
+        region,
+        place_type=place_types[0] if len(place_types) == 1 else "restaurant",
+        place_types=place_types,
+        top_n=top_n,
+        budget=budget,
+    )
     show_success(t("reviews_done", lang, count=len(results)))
 
     show_recommendations(results, lang)
@@ -155,23 +216,17 @@ def run_plan(lang: str = "tr"):
         show_translation(turkish_text, lang)
         show_summary(youtube_summary, lang)
 
-    place_type_choices = [
-        ("Restaurant" if lang == "en" else "Restoran", "restaurant"),
-        ("Cafe" if lang == "en" else "Kafe", "cafe"),
-        ("Tourist Attraction" if lang == "en" else "Turistik Yer", "tourist_attraction"),
-        ("Skip" if lang == "en" else "Atla", ""),
-    ]
-    display_names = [c[0] for c in place_type_choices]
-    selected = questionary.select(
-        "Include recommendations for:" if lang == "en" else "Öneriler ekle:",
-        choices=display_names,
-    ).ask()
-    place_type = ""
+    place_types = _ask_place_types(lang)
     review_results = []
-    if selected and selected != ("Skip" if lang == "en" else "Atla"):
-        place_type = dict(zip(display_names, [c[1] for c in place_type_choices]))[selected]
+    if place_types:
         show_info(t("fetching_reviews", lang, region=region))
-        review_results = recommend_places(region, place_type=place_type, top_n=5)
+        review_results = recommend_places(
+            region,
+            place_type=place_types[0] if len(place_types) == 1 else "restaurant",
+            place_types=place_types,
+            top_n=5,
+            budget=budget,
+        )
         show_success(t("reviews_done", lang, count=len(review_results)))
         show_recommendations(review_results, lang)
 

@@ -15,6 +15,8 @@ def generate_plan(
     youtube_summary: str = "",
     review_results: list[dict] | None = None,
     lang: str = "tr",
+    max_reviews_per_place: int = 3,
+    max_review_length: int = 300,
 ) -> str:
     client = _get_client()
 
@@ -24,8 +26,8 @@ def generate_plan(
             review_text += f"- {r.get('name', 'Unknown')}: Rating {r.get('rating', 'N/A')}, Address: {r.get('address', 'N/A')}\n"
             if r.get("price_level"):
                 review_text += f"  Price level: {r['price_level']}\n"
-            for rev in r.get("reviews", [])[:2]:
-                review_text += f"  Review ({rev.get('rating')}/5): {rev.get('text', '')[:100]}\n"
+            for rev in r.get("reviews", [])[:max_reviews_per_place]:
+                review_text += f"  Review ({rev.get('rating')}/5): {rev.get('text', '')[:max_review_length]}\n"
 
     lang_name = "Turkish" if lang == "tr" else "English"
     lang_instruction = "Türkçe olarak" if lang == "tr" else "in English"

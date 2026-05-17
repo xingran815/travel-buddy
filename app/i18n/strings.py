@@ -83,6 +83,38 @@ STRINGS = {
         "en": "Language set to English.",
         "tr": "Dil Türkçe olarak ayarlandı.",
     },
+    "select_type_mode": {
+        "en": "Single type or multiple types?",
+        "tr": "Tek tür mü yoksa birden fazla tür mü?",
+    },
+    "mode_single": {
+        "en": "Single type",
+        "tr": "Tek tür",
+    },
+    "mode_multi": {
+        "en": "Multiple types",
+        "tr": "Birden fazla tür",
+    },
+    "mode_skip": {
+        "en": "Skip",
+        "tr": "Atla",
+    },
+    "select_place_type": {
+        "en": "Place type:",
+        "tr": "Yer türü:",
+    },
+    "select_place_types": {
+        "en": "Select place types:",
+        "tr": "Yer türlerini seçin:",
+    },
+    "enter_budget_optional": {
+        "en": "Budget in USD (enter to skip):",
+        "tr": "Bütçe USD (atlamak için Enter):",
+    },
+    "deduplicating": {
+        "en": "Removing duplicates...",
+        "tr": "Kopyalar kaldırılıyor...",
+    },
 }
 
 
