@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+*.wav
+*.mp3
+*.mp4
+*.webm
+downloads/
