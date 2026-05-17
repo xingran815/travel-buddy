@@ -1,3 +1,4 @@
+import sys
 import click
 from app.i18n.strings import t
 from app.config import APP_LANG
@@ -8,12 +9,15 @@ from app.reviews.checker import recommend_places
 from app.planner.generator import generate_plan
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.option("--lang", default=APP_LANG, type=click.Choice(["en", "tr"]), help="Interface language")
 @click.pass_context
 def cli(ctx, lang):
     ctx.ensure_object(dict)
     ctx.obj["lang"] = lang
+    if ctx.invoked_subcommand is None:
+        from app.ui.menu import run_main_menu
+        run_main_menu()
 
 
 @cli.command()
