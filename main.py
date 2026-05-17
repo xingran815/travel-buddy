@@ -1,8 +1,7 @@
-import os
 import click
 from app.i18n.strings import t
 from app.config import APP_LANG
-from app.youtube.downloader import download_audio, get_video_title
+from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
@@ -25,16 +24,16 @@ def summarize(ctx, url):
     click.echo(t("welcome", lang))
 
     click.echo(t("downloading", lang))
-    audio_path = download_audio(url)
+    audio_path, video_id = download_audio(url)
     click.echo(t("download_done", lang))
 
     title = get_video_title(url)
-    click.echo(f"  {title}" if lang == "en" else f"  {title}")
+    click.echo(f"  {title}")
 
     click.echo(t("transcribing", lang))
     result = transcribe(audio_path)
     click.echo(t("transcribe_done", lang))
-    click.echo(f"  ({result['language']})" if lang == "en" else f"  ({result['language']})")
+    click.echo(f"  ({result['language']})")
 
     click.echo(t("translating", lang))
     turkish_text = translate_to_turkish(result["text"], result["language"])
@@ -44,12 +43,15 @@ def summarize(ctx, url):
     summary = summarize_in_turkish(turkish_text)
     click.echo(t("summarize_done", lang))
 
+    cleanup(video_id)
+
+    click.echo()
+    click.echo(t("header_translation", lang))
+    click.echo(turkish_text)
+
     click.echo()
     click.echo(t("header_summary", lang))
     click.echo(summary)
-
-    if os.path.exists(audio_path):
-        os.remove(audio_path)
 
 
 @cli.command()
@@ -97,7 +99,7 @@ def plan(ctx, region, budget, days, preferences, url, place_type, top):
     youtube_summary = ""
     if url:
         click.echo(t("downloading", lang))
-        audio_path = download_audio(url)
+        audio_path, video_id = download_audio(url)
         click.echo(t("transcribing", lang))
         result = transcribe(audio_path)
         click.echo(t("translating", lang))
@@ -105,8 +107,14 @@ def plan(ctx, region, budget, days, preferences, url, place_type, top):
         click.echo(t("summarizing", lang))
         youtube_summary = summarize_in_turkish(turkish_text)
         click.echo(t("summarize_done", lang))
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
+        cleanup(video_id)
+
+        click.echo()
+        click.echo(t("header_translation", lang))
+        click.echo(turkish_text)
+        click.echo()
+        click.echo(t("header_summary", lang))
+        click.echo(youtube_summary)
 
     click.echo(t("fetching_reviews", lang, region=region))
     review_results = recommend_places(region, place_type=place_type, top_n=top)

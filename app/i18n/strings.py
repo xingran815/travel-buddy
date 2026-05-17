@@ -67,6 +67,10 @@ STRINGS = {
         "en": "=== Video Summary ===",
         "tr": "=== Video Özeti ===",
     },
+    "header_translation": {
+        "en": "=== Turkish Translation ===",
+        "tr": "=== Türkçe Çeviri ===",
+    },
     "header_recommendations": {
         "en": "=== Recommendations ===",
         "tr": "=== Öneriler ===",

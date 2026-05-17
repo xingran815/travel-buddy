@@ -1,22 +1,23 @@
 from unittest.mock import patch, MagicMock
 import os
 import pytest
-from app.youtube.downloader import download_audio, get_video_title
+from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 
 
 class TestDownloader:
     @patch("app.youtube.downloader.yt_dlp.YoutubeDL")
-    def test_download_audio_returns_wav_path(self, mock_ydl_cls):
+    def test_download_audio_returns_wav_path_and_video_id(self, mock_ydl_cls):
         mock_ydl = MagicMock()
         mock_ydl_cls.return_value.__enter__ = MagicMock(return_value=mock_ydl)
         mock_ydl_cls.return_value.__exit__ = MagicMock(return_value=False)
         mock_ydl.extract_info.return_value = {"id": "abc123", "title": "Test Video"}
 
         with patch("os.path.exists", return_value=True):
-            result = download_audio("https://youtube.com/watch?v=abc123")
-        assert result.endswith("abc123.wav")
-        assert "downloads" in result
+            filepath, video_id = download_audio("https://youtube.com/watch?v=abc123")
+        assert filepath.endswith("abc123.wav")
+        assert "downloads" in filepath
+        assert video_id == "abc123"
 
     @patch("app.youtube.downloader.yt_dlp.YoutubeDL")
     def test_get_video_title(self, mock_ydl_cls):
@@ -41,6 +42,20 @@ class TestDownloader:
         call_args = mock_ydl_cls.call_args[0][0] if mock_ydl_cls.call_args[0] else mock_ydl_cls.call_args[1]
         if isinstance(call_args, dict):
             assert "worst" in call_args.get("format", "")
+
+    @patch("app.youtube.downloader.glob.glob")
+    @patch("app.youtube.downloader.os.remove")
+    def test_cleanup_removes_all_files_for_video_id(self, mock_remove, mock_glob):
+        mock_glob.return_value = ["downloads/abc123.wav", "downloads/abc123.webm"]
+        cleanup("abc123")
+        assert mock_remove.call_count == 2
+
+    @patch("app.youtube.downloader.glob.glob")
+    @patch("app.youtube.downloader.os.remove")
+    def test_cleanup_no_files(self, mock_remove, mock_glob):
+        mock_glob.return_value = []
+        cleanup("nonexistent")
+        mock_remove.assert_not_called()
 
 
 class TestTranscriber:

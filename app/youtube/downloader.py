@@ -1,8 +1,9 @@
 import os
+import glob
 import yt_dlp
 
 
-def download_audio(url: str, output_dir: str = "downloads") -> str:
+def download_audio(url: str, output_dir: str = "downloads") -> tuple[str, str]:
     os.makedirs(output_dir, exist_ok=True)
     out_template = os.path.join(output_dir, "%(id)s.%(ext)s")
     ydl_opts = {
@@ -21,7 +22,12 @@ def download_audio(url: str, output_dir: str = "downloads") -> str:
         filepath = os.path.join(output_dir, f"{video_id}.wav")
         if not os.path.exists(filepath):
             filepath = os.path.join(output_dir, f"{video_id}.mp3")
-        return filepath
+        return filepath, video_id
+
+
+def cleanup(video_id: str, output_dir: str = "downloads"):
+    for f in glob.glob(os.path.join(output_dir, f"{video_id}.*")):
+        os.remove(f)
 
 
 def get_video_title(url: str) -> str:
