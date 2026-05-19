@@ -1,10 +1,4 @@
-import json
-from openai import OpenAI
-from app.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
-
-
-def _get_client() -> OpenAI:
-    return OpenAI(api_key=LLM_API_KEY, base_url=LLM_BASE_URL)
+from app.llm.factory import get_provider
 
 
 def generate_plan(
@@ -18,8 +12,6 @@ def generate_plan(
     max_reviews_per_place: int = 3,
     max_review_length: int = 300,
 ) -> str:
-    client = _get_client()
-
     review_text = ""
     if review_results:
         for r in review_results:
@@ -59,12 +51,11 @@ Write the plan {lang_instruction}."""
 
     system_content = f"You are an expert travel planner. Create realistic, detailed travel itineraries. Respond {lang_instruction}."
 
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=[
+    result = get_provider().chat_text(
+        [
             {"role": "system", "content": system_content},
             {"role": "user", "content": user_content},
         ],
         temperature=0.7,
     )
-    return response.choices[0].message.content.strip()
+    return result.text.strip()

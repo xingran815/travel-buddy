@@ -1,3 +1,4 @@
+import os
 import sys
 import click
 from app.i18n.strings import t
@@ -107,9 +108,12 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
 @click.option("--llm-rerank", is_flag=True, help="Use LLM to re-rank top-K results")
 @click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
 @click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
+@click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
 @click.pass_context
-def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects):
+def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache):
     lang = ctx.obj["lang"]
+    if no_cache:
+        os.environ["PLACES_CACHE"] = "off"
     click.echo(t("welcome", lang))
     click.echo(t("fetching_reviews", lang, region=region))
 
@@ -201,9 +205,12 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
 @click.option("--llm-rerank", is_flag=True, help="Use LLM to re-rank top-K results")
 @click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
 @click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
+@click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
 @click.pass_context
-def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects):
+def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache):
     lang = ctx.obj["lang"]
+    if no_cache:
+        os.environ["PLACES_CACHE"] = "off"
     click.echo(t("welcome", lang))
 
     youtube_summary = ""

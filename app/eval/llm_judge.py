@@ -1,6 +1,6 @@
 import json
-from app.llm.client import get_client
-from app.config import LLM_MODEL
+
+from app.llm.factory import get_provider
 
 
 def _place_brief(p: dict) -> dict:
@@ -34,20 +34,16 @@ def judge(query: dict, results: list[dict], lang: str = "en", budget=None) -> di
     )
     user = json.dumps(payload, ensure_ascii=False)
     try:
-        client = get_client()
-        response = client.chat.completions.create(
-            model=LLM_MODEL,
-            messages=[
+        result = get_provider().chat_json(
+            [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
             temperature=0.0,
-            response_format={"type": "json_object"},
         )
-        if budget is not None:
-            budget.add_usage(getattr(response, "usage", None))
-        text = response.choices[0].message.content.strip()
-        return _coerce_verdict(json.loads(text))
+        if budget is not None and result.usage is not None:
+            budget.add_usage(result.usage)
+        return _coerce_verdict(json.loads(result.text.strip()))
     except Exception as e:
         return {"relevance": 0, "diversity": 0, "coverage": 0, "freshness": 0, "overall": 0.0, "rationale": f"error: {e}"}
 

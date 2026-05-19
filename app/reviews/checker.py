@@ -2,13 +2,14 @@ import time
 import googlemaps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import GOOGLE_MAPS_API_KEY
+from app.places.cache import CachedGmaps
 from app.reviews import factors
 from app.reviews.profiles import get_profile, DEFAULT_PROFILE
 from app.reviews.scoring import composite_score
 
 
 def get_client():
-    return googlemaps.Client(key=GOOGLE_MAPS_API_KEY)
+    return CachedGmaps(googlemaps.Client(key=GOOGLE_MAPS_API_KEY))
 
 
 def _bayesian_score(rating: float, review_count: int, C: int = 25, M: float = 3.5) -> float:

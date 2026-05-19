@@ -3,8 +3,7 @@ import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-from app.llm.client import get_client
-from app.config import LLM_MODEL
+from app.llm.factory import get_provider
 
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "cache"
 ASPECTS_CACHE = CACHE_DIR / "aspects.json"
@@ -40,20 +39,14 @@ def _reviews_signature(reviews: list[dict]) -> str:
 
 
 def _chat_json(messages: list[dict], temperature: float = 0.1, budget=None) -> dict:
-    client = get_client()
-    response = client.chat.completions.create(
-        model=LLM_MODEL,
-        messages=messages,
-        temperature=temperature,
-        response_format={"type": "json_object"},
-    )
-    if budget is not None:
-        budget.add_usage(getattr(response, "usage", None))
-    text = response.choices[0].message.content.strip()
+    result = get_provider().chat_json(messages, temperature=temperature)
+    if budget is not None and result.usage is not None:
+        budget.add_usage(result.usage)
+    text = (result.text or "").strip()
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Strip Markdown fences if model returned them despite json_object request
+        # Strip Markdown fences if a provider returned them despite json mode
         cleaned = text.strip("`").lstrip("json").strip()
         return json.loads(cleaned)
 
