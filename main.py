@@ -12,6 +12,7 @@ from app.reviews.checker import recommend_by_categories
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE, FACTOR_KEYS
 from app.planner.generator import generate_plan
 from app.profile.store import load_profile, save_profile
+from app.setup_wizard import missing_keys, run_wizard
 
 
 @click.group(invoke_without_command=True)
@@ -45,6 +46,8 @@ def _parse_location(location_str: str | None) -> tuple[float, float] | None:
 @click.pass_context
 def summarize(ctx, url):
     lang = ctx.obj["lang"]
+    if missing_keys("llm") and run_wizard("llm"):
+        return
     click.echo(t("welcome", lang))
 
     click.echo(t("downloading", lang))
@@ -145,6 +148,8 @@ def _print_place(i: int, r: dict, lang: str) -> None:
 @click.pass_context
 def recommend(ctx, region, place_type, types, categories, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
+    if missing_keys("places") and run_wizard("places"):
+        return
     if no_cache:
         os.environ["PLACES_CACHE"] = "off"
     user_profile = None if no_profile else load_profile()
@@ -260,6 +265,8 @@ def recommend(ctx, region, place_type, types, categories, top, max_pages, min_pr
 @click.pass_context
 def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
+    if (missing_keys("places") or missing_keys("llm")) and run_wizard("places", "llm"):
+        return
     if no_cache:
         os.environ["PLACES_CACHE"] = "off"
     user_profile = None if no_profile else load_profile()

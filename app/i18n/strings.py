@@ -51,18 +51,6 @@ STRINGS = {
         "en": "Travel plan ready!",
         "tr": "Seyahat planı hazır!",
     },
-    "error_no_url": {
-        "en": "Error: Please provide a YouTube URL.",
-        "tr": "Hata: Lütfen bir YouTube URL'si girin.",
-    },
-    "error_no_region": {
-        "en": "Error: Please provide a region.",
-        "tr": "Hata: Lütfen bir bölge girin.",
-    },
-    "error_api_key": {
-        "en": "Error: Missing API key. Check your .env file.",
-        "tr": "Hata: API anahtarı eksik. .env dosyanızı kontrol edin.",
-    },
     "header_summary": {
         "en": "=== Video Summary ===",
         "tr": "=== Video Özeti ===",
@@ -87,18 +75,6 @@ STRINGS = {
         "en": "Single type or multiple types?",
         "tr": "Tek tür mü yoksa birden fazla tür mü?",
     },
-    "mode_single": {
-        "en": "Single type",
-        "tr": "Tek tür",
-    },
-    "mode_multi": {
-        "en": "Multiple types",
-        "tr": "Birden fazla tür",
-    },
-    "mode_skip": {
-        "en": "Skip",
-        "tr": "Atla",
-    },
     "select_place_type": {
         "en": "Place type:",
         "tr": "Yer türü:",
@@ -110,10 +86,6 @@ STRINGS = {
     "enter_budget_optional": {
         "en": "Budget in USD (enter to skip):",
         "tr": "Bütçe USD (atlamak için Enter):",
-    },
-    "deduplicating": {
-        "en": "Removing duplicates...",
-        "tr": "Kopyalar kaldırılıyor...",
     },
     "select_profile": {
         "en": "Recommendation profile:",
@@ -245,10 +217,6 @@ STRINGS = {
         "en": "Why",
         "tr": "Neden",
     },
-    "prompt_query": {
-        "en": "Describe your trip (optional, enter to skip):",
-        "tr": "Geziyi kendi cümlelerinizle anlatın (isteğe bağlı, atlamak için Enter):",
-    },
     "prompt_topic": {
         "en": "Topic (history/art/science, enter to skip):",
         "tr": "Konu (tarih/sanat/bilim, atlamak için Enter):",
@@ -288,14 +256,6 @@ STRINGS = {
     "prompt_time_required": {
         "en": "Time available (hours, enter to skip):",
         "tr": "Ayrılan süre (saat, atlamak için Enter):",
-    },
-    "prompt_aspects": {
-        "en": "Aspects (e.g. romantic,view,quiet — enter to skip):",
-        "tr": "Özellikler (örn. romantik,manzara,sessiz — atlamak için Enter):",
-    },
-    "judge_summary": {
-        "en": "LLM Judge Summary",
-        "tr": "LLM Hakem Özeti",
     },
 }
 

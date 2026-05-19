@@ -1,4 +1,6 @@
+import sys
 import time
+import click
 import googlemaps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import GOOGLE_MAPS_API_KEY
@@ -11,10 +13,6 @@ from app.reviews.scoring import composite_score
 
 def get_client():
     return CachedGmaps(googlemaps.Client(key=GOOGLE_MAPS_API_KEY))
-
-
-def _bayesian_score(rating: float, review_count: int, C: int = 25, M: float = 3.5) -> float:
-    return (review_count / (review_count + C)) * rating + (C / (review_count + C)) * M
 
 
 def _deduplicate(places: list[dict]) -> list[dict]:
@@ -46,6 +44,8 @@ def _filter_by_price(places: list[dict], min_price: int | None = None, max_price
 
 
 def _budget_to_max_price(budget: float | None) -> int | None:
+    """Hard cap: total budget → max Google price_level for the price-filter
+    pre-fetch. Coarser than the per-person scoring target in factors._budget_to_target_price."""
     if budget is None:
         return None
     if budget < 300:
@@ -60,13 +60,47 @@ def _budget_to_max_price(budget: float | None) -> int | None:
 DEFAULT_D_HALF_KM = 3.0
 
 
+def _candidate_summary(c: dict) -> str:
+    geom = c.get("geometry") or {}
+    loc = geom.get("location") or {}
+    addr = c.get("formatted_address") or "?"
+    try:
+        lat = float(loc.get("lat"))
+        lng = float(loc.get("lng"))
+        return f"{addr} ({lat:.4f}, {lng:.4f})"
+    except (TypeError, ValueError):
+        return addr
+
+
+def _pick_geocode_candidate(candidates: list[dict], region: str) -> dict:
+    if len(candidates) <= 1:
+        return candidates[0]
+    if not sys.stdin.isatty():
+        click.echo(
+            f"[geocode] {len(candidates)} matches for {region!r}; using: {_candidate_summary(candidates[0])}",
+            err=True,
+        )
+        return candidates[0]
+    click.echo(f"Multiple regions matched {region!r}. Pick one:")
+    for i, c in enumerate(candidates, 1):
+        click.echo(f"  {i}. {_candidate_summary(c)}")
+    while True:
+        try:
+            choice = click.prompt("Choice", type=int, default=1)
+        except click.Abort:
+            return candidates[0]
+        if 1 <= choice <= len(candidates):
+            return candidates[choice - 1]
+
+
 def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float]:
     try:
         gmaps = get_client()
-        result = gmaps.geocode(region)
-        if not result:
+        results = gmaps.geocode(region)
+        if not results:
             return None, DEFAULT_D_HALF_KM
-        geom = result[0]["geometry"]
+        chosen = _pick_geocode_candidate(results, region)
+        geom = chosen["geometry"]
         loc = geom["location"]
         center = (float(loc["lat"]), float(loc["lng"]))
         viewport = geom.get("viewport") or {}

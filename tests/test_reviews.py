@@ -4,12 +4,12 @@ from app.reviews.checker import (
     search_places,
     get_place_details,
     recommend_places,
-    _bayesian_score,
     _deduplicate,
     _filter_by_price,
     _budget_to_max_price,
     _fetch_details_batch,
 )
+from app.reviews.factors import _bayesian
 
 
 MOCK_PLACES_RESULT = {
@@ -157,24 +157,24 @@ class TestRecommendPlaces:
 
 class TestBayesianScore:
     def test_high_review_count_trusts_own_rating(self):
-        score = _bayesian_score(4.8, 2000, C=25, M=3.5)
+        score = _bayesian(4.8, 2000, C=25, M=3.5)
         assert score > 4.7
 
     def test_low_review_count_blends_toward_prior(self):
-        score = _bayesian_score(5.0, 1, C=25, M=3.5)
+        score = _bayesian(5.0, 1, C=25, M=3.5)
         assert 3.5 < score < 4.0
 
     def test_zero_reviews_returns_prior(self):
-        score = _bayesian_score(0.0, 0, C=25, M=3.5)
+        score = _bayesian(0.0, 0, C=25, M=3.5)
         assert score == pytest.approx(3.5)
 
     def test_better_than_old_formula_for_low_counts(self):
         old = 4.8 * min(50, 100) / 100
-        bayesian = _bayesian_score(4.8, 50, C=25, M=3.5)
+        bayesian = _bayesian(4.8, 50, C=25, M=3.5)
         assert bayesian > old
 
     def test_custom_C_and_M(self):
-        score = _bayesian_score(4.0, 10, C=50, M=3.0)
+        score = _bayesian(4.0, 10, C=50, M=3.0)
         assert 3.0 < score < 4.0
 
 
@@ -404,6 +404,37 @@ class TestGeocodeRegion:
         center, d_half = _geocode_region("Nowhere")
         assert center is None
         assert d_half == DEFAULT_D_HALF_KM
+
+    @patch("sys.stdin.isatty", return_value=False)
+    @patch("app.reviews.checker.get_client")
+    def test_non_interactive_falls_back_to_first_candidate(self, mock_get_client, mock_tty):
+        from app.reviews.checker import _geocode_region
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        mock_gmaps.geocode.return_value = [
+            {"formatted_address": "Springfield, IL, USA",
+             "geometry": {"location": {"lat": 39.78, "lng": -89.65}}},
+            {"formatted_address": "Springfield, MO, USA",
+             "geometry": {"location": {"lat": 37.21, "lng": -93.30}}},
+        ]
+        center, _ = _geocode_region("Springfield")
+        assert center == (39.78, -89.65)  # falls back to first
+
+    @patch("sys.stdin.isatty", return_value=True)
+    @patch("app.reviews.checker.click.prompt", return_value=2)
+    @patch("app.reviews.checker.get_client")
+    def test_interactive_user_picks_second_candidate(self, mock_get_client, mock_prompt, mock_tty):
+        from app.reviews.checker import _geocode_region
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        mock_gmaps.geocode.return_value = [
+            {"formatted_address": "Cambridge, UK",
+             "geometry": {"location": {"lat": 52.20, "lng": 0.12}}},
+            {"formatted_address": "Cambridge, MA, USA",
+             "geometry": {"location": {"lat": 42.37, "lng": -71.11}}},
+        ]
+        center, _ = _geocode_region("Cambridge")
+        assert center == (42.37, -71.11)
 
 
 class TestClosedFiltering:

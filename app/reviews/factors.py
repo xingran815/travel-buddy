@@ -70,6 +70,9 @@ def cost_fit(price_level: int | None, budget: float | None, people: int = 2) -> 
 
 
 def _budget_to_target_price(budget: float | None, people: int = 2) -> int | None:
+    """Soft scoring target: per-person spend → ideal Google price_level for
+    cost_fit. Finer-grained than checker._budget_to_max_price (the hard
+    pre-fetch cap)."""
     if budget is None or people <= 0:
         return None
     per_person = budget / people
