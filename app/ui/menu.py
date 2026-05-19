@@ -14,7 +14,39 @@ from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
+from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
 from app.planner.generator import generate_plan
+
+
+PROFILE_ORDER = ("balanced", "family", "adult", "foodie", "budget")
+
+
+def _ask_profile(lang: str) -> str | None:
+    labels = [(t(f"profile_{p}", lang), p) for p in PROFILE_ORDER]
+    selected = questionary.select(
+        t("select_profile", lang),
+        choices=[l for l, _ in labels],
+    ).ask()
+    if selected is None:
+        return None
+    return dict(labels).get(selected)
+
+
+def _ask_audience(lang: str) -> str | None:
+    any_label = t("audience_any", lang)
+    family_label = t("audience_family", lang)
+    adult_label = t("audience_adult", lang)
+    selected = questionary.select(
+        t("prompt_audience", lang),
+        choices=[any_label, family_label, adult_label],
+    ).ask()
+    if selected is None or selected == any_label:
+        return None
+    if selected == family_label:
+        return "family"
+    if selected == adult_label:
+        return "adult"
+    return None
 
 
 PLACE_TYPE_CHOICES = [
@@ -142,12 +174,26 @@ def run_recommend(lang: str = "tr"):
     top_n = int(top_str)
 
     budget_str = questionary.text(
-        "Budget in USD (enter to skip):" if lang == "en" else "Bütçe USD (atlamak için Enter):",
+        t("enter_budget_optional", lang),
         default="",
     ).ask()
     if _is_quit(budget_str):
         return
     budget = float(budget_str) if budget_str else None
+
+    profile = _ask_profile(lang) or DEFAULT_PROFILE
+
+    cuisine = questionary.text(t("prompt_cuisine", lang), default="").ask()
+    if _is_quit(cuisine):
+        return
+    cuisine = cuisine.strip() or None
+
+    audience = _ask_audience(lang)
+
+    people_str = questionary.text(t("prompt_people", lang), default="2").ask()
+    if _is_quit(people_str):
+        return
+    people = int(people_str) if people_str else 2
 
     show_info(t("fetching_reviews", lang, region=region))
     results = recommend_places(
@@ -156,6 +202,10 @@ def run_recommend(lang: str = "tr"):
         place_types=place_types,
         top_n=top_n,
         budget=budget,
+        profile=profile,
+        cuisine=cuisine,
+        audience=audience,
+        people=people,
     )
     show_success(t("reviews_done", lang, count=len(results)))
 
@@ -219,6 +269,20 @@ def run_plan(lang: str = "tr"):
     place_types = _ask_place_types(lang)
     review_results = []
     if place_types:
+        profile = _ask_profile(lang) or DEFAULT_PROFILE
+
+        cuisine = questionary.text(t("prompt_cuisine", lang), default="").ask()
+        if _is_quit(cuisine):
+            return
+        cuisine = cuisine.strip() or None
+
+        audience = _ask_audience(lang)
+
+        people_str = questionary.text(t("prompt_people", lang), default="2").ask()
+        if _is_quit(people_str):
+            return
+        people = int(people_str) if people_str else 2
+
         show_info(t("fetching_reviews", lang, region=region))
         review_results = recommend_places(
             region,
@@ -226,6 +290,10 @@ def run_plan(lang: str = "tr"):
             place_types=place_types,
             top_n=5,
             budget=budget,
+            profile=profile,
+            cuisine=cuisine,
+            audience=audience,
+            people=people,
         )
         show_success(t("reviews_done", lang, count=len(review_results)))
         show_recommendations(review_results, lang)

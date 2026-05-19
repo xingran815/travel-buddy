@@ -2,6 +2,9 @@ import time
 import googlemaps
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import GOOGLE_MAPS_API_KEY
+from app.reviews import factors
+from app.reviews.profiles import get_profile, DEFAULT_PROFILE
+from app.reviews.scoring import composite_score
 
 
 def get_client():
@@ -52,6 +55,18 @@ def _budget_to_max_price(budget: float | None) -> int | None:
     return None
 
 
+def _geocode_region(region: str) -> tuple[float, float] | None:
+    try:
+        gmaps = get_client()
+        result = gmaps.geocode(region)
+        if not result:
+            return None
+        loc = result[0]["geometry"]["location"]
+        return (float(loc["lat"]), float(loc["lng"]))
+    except Exception:
+        return None
+
+
 def search_places(
     region: str,
     place_type: str = "restaurant",
@@ -81,6 +96,17 @@ def search_places(
 
     places = []
     for p in all_raw:
+        if p.get("business_status") == "CLOSED_PERMANENTLY":
+            continue
+        geom = (p.get("geometry") or {}).get("location") or {}
+        lat = geom.get("lat")
+        lng = geom.get("lng")
+        try:
+            lat = float(lat) if lat is not None else None
+            lng = float(lng) if lng is not None else None
+        except (TypeError, ValueError):
+            lat = None
+            lng = None
         places.append({
             "name": p.get("name", ""),
             "place_id": p.get("place_id", ""),
@@ -89,6 +115,9 @@ def search_places(
             "address": p.get("formatted_address", p.get("vicinity", "")),
             "types": p.get("types", []),
             "price_level": p.get("price_level"),
+            "lat": lat,
+            "lng": lng,
+            "business_status": p.get("business_status"),
         })
 
     places = _filter_by_price(places, min_price, max_price)
@@ -97,7 +126,22 @@ def search_places(
 
 def get_place_details(place_id: str) -> dict:
     gmaps = get_client()
-    result = gmaps.place(place_id=place_id, fields=["name", "rating", "review", "formatted_address", "price_level", "international_phone_number", "website"])
+    result = gmaps.place(
+        place_id=place_id,
+        fields=[
+            "name",
+            "rating",
+            "review",
+            "formatted_address",
+            "price_level",
+            "international_phone_number",
+            "website",
+            "geometry/location",
+            "business_status",
+            "user_ratings_total",
+            "type",
+        ],
+    )
     detail = result.get("result", {})
     reviews = []
     for r in detail.get("reviews", []):
@@ -105,7 +149,18 @@ def get_place_details(place_id: str) -> dict:
             "author": r.get("author_name", ""),
             "rating": r.get("rating", 0),
             "text": r.get("text", ""),
+            "time": r.get("time"),
+            "language": r.get("language"),
         })
+    geom = (detail.get("geometry") or {}).get("location") or {}
+    lat = geom.get("lat")
+    lng = geom.get("lng")
+    try:
+        lat = float(lat) if lat is not None else None
+        lng = float(lng) if lng is not None else None
+    except (TypeError, ValueError):
+        lat = None
+        lng = None
     return {
         "name": detail.get("name", ""),
         "rating": detail.get("rating", 0.0),
@@ -114,6 +169,11 @@ def get_place_details(place_id: str) -> dict:
         "phone": detail.get("international_phone_number", ""),
         "website": detail.get("website", ""),
         "reviews": reviews,
+        "lat": lat,
+        "lng": lng,
+        "business_status": detail.get("business_status"),
+        "user_ratings_total": detail.get("user_ratings_total"),
+        "types": detail.get("types", []),
     }
 
 
@@ -139,6 +199,10 @@ def recommend_places(
     location: tuple[float, float] | None = None,
     radius: int | None = None,
     include_details: bool = True,
+    profile: str = DEFAULT_PROFILE,
+    cuisine: str | None = None,
+    audience: str | None = None,
+    people: int = 2,
 ) -> list[dict]:
     types = place_types or [place_type]
     if budget is not None and max_price is None:
@@ -159,10 +223,31 @@ def recommend_places(
 
     all_places = _deduplicate(all_places)
 
+    center = location or _geocode_region(region)
+    weights = get_profile(profile, has_cuisine=bool(cuisine), has_audience=bool(audience))
+
     scored = []
     for p in all_places:
-        score = _bayesian_score(p["rating"], p["user_ratings_total"])
-        scored.append({**p, "score": round(score, 2)})
+        result = composite_score(
+            p,
+            weights=weights,
+            center=center,
+            cuisine=cuisine,
+            audience=audience,
+            budget=budget,
+            people=people,
+        )
+        distance_km = None
+        if center and p.get("lat") is not None and p.get("lng") is not None:
+            distance_km = round(factors.haversine(center, (p["lat"], p["lng"])), 2)
+        scored.append({
+            **p,
+            "score": round(result["total"] * 5.0, 2),
+            "score_breakdown": {k: round(v * 5.0, 3) for k, v in result["breakdown"].items()},
+            "score_raw": {k: round(v, 3) for k, v in result["raw"].items()},
+            "audience_tag": result["audience_tag"],
+            "distance_km": distance_km,
+        })
     scored.sort(key=lambda x: x["score"], reverse=True)
 
     top = scored[:top_n]
@@ -175,6 +260,12 @@ def recommend_places(
 
     results = []
     for t in top:
-        detail = details_map.get(t["place_id"], {})
-        results.append(detail)
+        detail = details_map.get(t["place_id"], {}) or {}
+        merged = {**t, **{k: v for k, v in detail.items() if v not in (None, "", [], {})}}
+        merged["score"] = t["score"]
+        merged["score_breakdown"] = t["score_breakdown"]
+        merged["score_raw"] = t["score_raw"]
+        merged["audience_tag"] = t["audience_tag"]
+        merged["distance_km"] = t["distance_km"]
+        results.append(merged)
     return results

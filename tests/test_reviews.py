@@ -340,6 +340,74 @@ class TestBudgetToMaxPrice:
         assert _budget_to_max_price(None) is None
 
 
+class TestClosedFiltering:
+    @patch("app.reviews.checker.get_client")
+    def test_closed_permanently_excluded(self, mock_get_client):
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        mock_gmaps.places.return_value = {
+            "results": [
+                {"name": "Open", "place_id": "1", "rating": 4.0, "user_ratings_total": 100, "formatted_address": "Addr", "types": [], "business_status": "OPERATIONAL"},
+                {"name": "Closed", "place_id": "2", "rating": 4.5, "user_ratings_total": 200, "formatted_address": "Addr2", "types": [], "business_status": "CLOSED_PERMANENTLY"},
+            ]
+        }
+        result = search_places("Istanbul")
+        names = [p["name"] for p in result]
+        assert "Open" in names
+        assert "Closed" not in names
+
+    @patch("app.reviews.checker.get_client")
+    def test_extracts_lat_lng_from_geometry(self, mock_get_client):
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        mock_gmaps.places.return_value = {
+            "results": [
+                {"name": "X", "place_id": "1", "rating": 4.0, "user_ratings_total": 100, "formatted_address": "Addr", "types": [],
+                 "geometry": {"location": {"lat": 41.0, "lng": 29.0}}},
+            ]
+        }
+        result = search_places("Istanbul")
+        assert result[0]["lat"] == 41.0
+        assert result[0]["lng"] == 29.0
+
+
+class TestRecommendBreakdown:
+    @patch("app.reviews.checker._fetch_details_batch")
+    @patch("app.reviews.checker.search_places")
+    @patch("app.reviews.checker._geocode_region", return_value=None)
+    def test_results_include_breakdown(self, mock_geo, mock_search, mock_batch):
+        mock_search.return_value = [
+            {"name": "A", "place_id": "1", "rating": 4.5, "user_ratings_total": 200, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
+        ]
+        mock_batch.return_value = {"1": {"name": "A", "rating": 4.5, "reviews": []}}
+
+        result = recommend_places("Istanbul", top_n=1)
+        assert "score" in result[0]
+        assert "score_breakdown" in result[0]
+        assert set(result[0]["score_breakdown"].keys()) == {
+            "quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine",
+        }
+
+    @patch("app.reviews.checker._fetch_details_batch")
+    @patch("app.reviews.checker.search_places")
+    @patch("app.reviews.checker._geocode_region", return_value=None)
+    def test_profile_changes_ordering(self, mock_geo, mock_search, mock_batch):
+        # Place A: high rating but expensive. Place B: average rating but very cheap.
+        mock_search.return_value = [
+            {"name": "Fancy", "place_id": "1", "rating": 4.7, "user_ratings_total": 500, "address": "Addr", "types": ["restaurant"], "price_level": 4, "lat": None, "lng": None},
+            {"name": "Cheap", "place_id": "2", "rating": 4.0, "user_ratings_total": 500, "address": "Addr", "types": ["restaurant"], "price_level": 1, "lat": None, "lng": None},
+        ]
+        mock_batch.return_value = {
+            "1": {"name": "Fancy", "rating": 4.7, "reviews": []},
+            "2": {"name": "Cheap", "rating": 4.0, "reviews": []},
+        }
+
+        foodie = recommend_places("Istanbul", top_n=2, profile="foodie", budget=100, people=2)
+        budget = recommend_places("Istanbul", top_n=2, profile="budget", budget=100, people=2)
+        assert foodie[0]["name"] == "Fancy"
+        assert budget[0]["name"] == "Cheap"
+
+
 class TestParallelDetails:
     @patch("app.reviews.checker.get_place_details")
     def test_fetch_details_batch(self, mock_details):

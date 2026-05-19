@@ -35,8 +35,11 @@ Both share the same backend modules. The interactive menu lives in `app/ui/menu.
 - `download_audio()` returns `tuple[str, str]` — `(filepath, video_id)`, not just a path
 - `cleanup(video_id)` removes all `video_id.*` files from `downloads/` (wav, webm, mp4, etc.)
 - Whisper transcription uses `fp16=torch.cuda.is_available()` to suppress CPU warning
-- `recommend_places()` scoring: Bayesian average `(n/(n+C)) * rating + (C/(n+C)) * M` where C=25, M=3.5
-- `recommend_places()` supports multi-type search via `place_types` param, deduplication, pagination, price/budget filtering, and parallel detail fetching
+- `recommend_places()` scoring: 8-factor weighted composite in `app/reviews/scoring.py::composite_score` — quality, volume, distance, cost, recency, sentiment, audience, cuisine. Each factor is normalized to 0..1 in `app/reviews/factors.py`; weights come from named profiles in `app/reviews/profiles.py` (`balanced`/`family`/`adult`/`foodie`/`budget`). Final score is `Σ(w_i · f_i) × 5`. Quality factor wraps the legacy `_bayesian_score` (still exported for tests).
+- Each result carries `score`, `score_breakdown` (weighted contributions per factor, sum to final score), `score_raw` (unweighted 0..1 factor values), `audience_tag`, and `distance_km`.
+- Distance uses haversine from a region centroid: explicit `location` if provided, else `_geocode_region(region)` (silently falls back to neutral 0.5 if geocode fails — no API key, network, etc.).
+- `CLOSED_PERMANENTLY` places are dropped in `search_places`.
+- `recommend_places()` supports multi-type search via `place_types` param, deduplication, pagination, price/budget filtering, parallel detail fetching, and new params: `profile`, `cuisine`, `audience` (`"family"`/`"adult"`/`None`), `people`.
 - `_budget_to_max_price()` auto-derives max price level from budget (<$300→1, <$700→2, <$1500→3)
 - `generate_plan()` has configurable `max_reviews_per_place` (default 3) and `max_review_length` (default 300)
 - Config globals (`LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `GOOGLE_MAPS_API_KEY`, `APP_LANG`) are set once at import — patch at the module level in tests (e.g. `@patch("app.llm.client.LLM_API_KEY", "test-key")`)

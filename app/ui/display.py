@@ -27,6 +27,19 @@ def show_summary(text: str, lang: str = "tr"):
     console.print(Panel(Markdown(text), title=header, border_style="yellow", padding=(1, 2)))
 
 
+FACTOR_KEYS = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine")
+
+
+def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:
+    from app.i18n.strings import t
+    parts = []
+    for k in FACTOR_KEYS:
+        v = breakdown.get(k, 0.0)
+        label = t(f"factor_{k}", lang)
+        parts.append(f"{label} {v:.2f}")
+    return " · ".join(parts)
+
+
 def show_recommendations(places: list[dict], lang: str = "tr"):
     from app.i18n.strings import t
     header = t("header_recommendations", lang)
@@ -34,25 +47,38 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
     table = Table(title=header, show_lines=True)
     table.add_column("#", style="dim", width=3)
     table.add_column("Name" if lang == "en" else "İsim", style="bold")
+    table.add_column(t("label_score", lang), justify="center")
     table.add_column("Rating" if lang == "en" else "Puan", justify="center")
-    table.add_column("Address" if lang == "en" else "Adres")
+    table.add_column(t("label_distance", lang), justify="right")
+    table.add_column(t("label_reviews", lang), justify="right")
     table.add_column("Price" if lang == "en" else "Fiyat", justify="center")
+    table.add_column("Address" if lang == "en" else "Adres")
 
     for i, place in enumerate(places, 1):
+        score = place.get("score")
+        score_str = f"{score:.2f}" if isinstance(score, (int, float)) else "-"
         rating = str(place.get("rating", "N/A"))
         name = place.get("name", "")
         address = place.get("address", "")
         price_level = place.get("price_level")
         price = "$" * price_level if price_level else "-"
-        table.add_row(str(i), name, rating, address, price)
+        d = place.get("distance_km")
+        distance = f"{d:.1f} km" if isinstance(d, (int, float)) else "-"
+        n_reviews = place.get("user_ratings_total")
+        n_reviews_str = str(n_reviews) if n_reviews else "-"
+        table.add_row(str(i), name, score_str, rating, distance, n_reviews_str, price, address)
 
     console.print()
     console.print(table)
 
     for place in places:
+        breakdown = place.get("score_breakdown")
+        if breakdown:
+            label = t("label_breakdown", lang)
+            console.print(f"\n  [bold]{place.get('name', '')}[/bold] — [dim]{label}:[/dim] {_format_breakdown(breakdown, lang)}")
         reviews = place.get("reviews", [])
         if reviews:
-            console.print(f"\n  [bold]{place['name']}[/bold] — {'Reviews' if lang == 'en' else 'Yorumlar'}:")
+            console.print(f"  [dim]{t('label_reviews', lang)}:[/dim]")
             for rev in reviews[:3]:
                 stars = "⭐" * rev.get("rating", 0)
                 console.print(f"    {stars} [dim]{rev.get('author', '')}[/dim]: {rev.get('text', '')[:120]}")

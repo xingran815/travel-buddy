@@ -115,6 +115,102 @@ STRINGS = {
         "en": "Removing duplicates...",
         "tr": "Kopyalar kaldırılıyor...",
     },
+    "select_profile": {
+        "en": "Recommendation profile:",
+        "tr": "Öneri profili:",
+    },
+    "profile_balanced": {
+        "en": "Balanced",
+        "tr": "Dengeli",
+    },
+    "profile_family": {
+        "en": "Family",
+        "tr": "Aile",
+    },
+    "profile_adult": {
+        "en": "Adult",
+        "tr": "Yetişkin",
+    },
+    "profile_foodie": {
+        "en": "Foodie",
+        "tr": "Gurme",
+    },
+    "profile_budget": {
+        "en": "Budget",
+        "tr": "Ekonomik",
+    },
+    "prompt_cuisine": {
+        "en": "Preferred cuisine (enter to skip):",
+        "tr": "Tercih edilen mutfak (atlamak için Enter):",
+    },
+    "prompt_audience": {
+        "en": "Audience:",
+        "tr": "Hedef kitle:",
+    },
+    "audience_family": {
+        "en": "Family-friendly",
+        "tr": "Aile dostu",
+    },
+    "audience_adult": {
+        "en": "Adult-oriented",
+        "tr": "Yetişkinlere yönelik",
+    },
+    "audience_any": {
+        "en": "Any",
+        "tr": "Fark etmez",
+    },
+    "prompt_people": {
+        "en": "Number of people:",
+        "tr": "Kişi sayısı:",
+    },
+    "label_distance": {
+        "en": "Distance",
+        "tr": "Mesafe",
+    },
+    "label_reviews": {
+        "en": "Reviews",
+        "tr": "Yorumlar",
+    },
+    "label_breakdown": {
+        "en": "Score breakdown",
+        "tr": "Puan dağılımı",
+    },
+    "label_score": {
+        "en": "Score",
+        "tr": "Puan",
+    },
+    "factor_quality": {
+        "en": "quality",
+        "tr": "kalite",
+    },
+    "factor_volume": {
+        "en": "volume",
+        "tr": "hacim",
+    },
+    "factor_distance": {
+        "en": "distance",
+        "tr": "mesafe",
+    },
+    "factor_cost": {
+        "en": "cost",
+        "tr": "maliyet",
+    },
+    "factor_recency": {
+        "en": "recency",
+        "tr": "güncellik",
+    },
+    "factor_sentiment": {
+        "en": "sentiment",
+        "tr": "duygu",
+    },
+    "factor_audience": {
+        "en": "audience",
+        "tr": "kitle",
+    },
+    "factor_cuisine": {
+        "en": "cuisine",
+        "tr": "mutfak",
+    },
 }
 
 

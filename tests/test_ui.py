@@ -114,8 +114,10 @@ class TestMenuRecommend:
     @patch("app.ui.menu.questionary.text")
     def test_run_recommend_with_region(self, mock_text, mock_select, mock_types, mock_rec):
         mock_text.side_effect = [
-            MagicMock(ask=MagicMock(return_value="Istanbul")),
-            MagicMock(ask=MagicMock(return_value="")),
+            MagicMock(ask=MagicMock(return_value="Istanbul")),  # region
+            MagicMock(ask=MagicMock(return_value="")),           # budget skip
+            MagicMock(ask=MagicMock(return_value="")),           # cuisine skip
+            MagicMock(ask=MagicMock(return_value="2")),          # people
         ]
         mock_select.return_value = MagicMock(ask=MagicMock(return_value="5"))
         run_recommend("en")
