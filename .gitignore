@@ -8,3 +8,5 @@ venv/
 *.mp4
 *.webm
 downloads/
+cache/
+evals/

@@ -15,10 +15,140 @@ from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
+from app.ui.type_prompts import prompts_for_types
 from app.planner.generator import generate_plan
 
 
-PROFILE_ORDER = ("balanced", "family", "adult", "foodie", "budget")
+PROFILE_ORDER = ("balanced", "family", "adult", "foodie", "budget", "aspect-heavy")
+
+
+_QUIT = object()
+
+
+def _ask_text(label: str, default: str = "") -> str | None:
+    value = questionary.text(label, default=default).ask()
+    if value is None:
+        return None
+    if value.strip().lower() == "q":
+        return None
+    return value
+
+
+def _ask_cuisine(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_cuisine", lang), default="")
+    if v is None:
+        return None
+    return {"cuisine": v.strip() or None}
+
+
+def _ask_people(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_people", lang), default="2")
+    if v is None:
+        return None
+    return {"people": int(v) if v.strip() else 2}
+
+
+def _ask_budget(lang: str) -> dict | None:
+    v = _ask_text(t("enter_budget_optional", lang), default="")
+    if v is None:
+        return None
+    return {"budget": float(v) if v.strip() else None}
+
+
+def _ask_topic(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_topic", lang), default="")
+    if v is None:
+        return None
+    return {"topic": v.strip() or None}
+
+
+def _ask_vibe(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_vibe", lang), default="")
+    if v is None:
+        return None
+    return {"vibe": v.strip() or None}
+
+
+def _ask_nights(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_nights", lang), default="2")
+    if v is None:
+        return None
+    return {"nights": int(v) if v.strip() else 2}
+
+
+def _ask_rooms(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_rooms", lang), default="1")
+    if v is None:
+        return None
+    return {"rooms": int(v) if v.strip() else 1}
+
+
+def _ask_amenities(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_amenities", lang), default="")
+    if v is None:
+        return None
+    items = [s.strip() for s in (v or "").split(",") if s.strip()]
+    return {"amenities": items}
+
+
+def _ask_time_required(lang: str) -> dict | None:
+    v = _ask_text(t("prompt_time_required", lang), default="")
+    if v is None:
+        return None
+    try:
+        hours = float(v) if v.strip() else None
+    except ValueError:
+        hours = None
+    return {"time_hours": hours}
+
+
+def _ask_indoor_outdoor(lang: str) -> dict | None:
+    any_label = t("any_choice", lang)
+    indoor_label = t("indoor", lang)
+    outdoor_label = t("outdoor", lang)
+    selected = questionary.select(
+        t("prompt_indoor_outdoor", lang),
+        choices=[any_label, indoor_label, outdoor_label],
+    ).ask()
+    if selected is None or selected == any_label:
+        return {"indoor_outdoor": None}
+    if selected == indoor_label:
+        return {"indoor_outdoor": "indoor"}
+    if selected == outdoor_label:
+        return {"indoor_outdoor": "outdoor"}
+    return {"indoor_outdoor": None}
+
+
+def _ask_audience_prompt(lang: str) -> dict | None:
+    return {"audience": _ask_audience(lang)}
+
+
+PROMPT_HANDLERS = {
+    "cuisine": _ask_cuisine,
+    "people": _ask_people,
+    "budget": _ask_budget,
+    "topic": _ask_topic,
+    "vibe": _ask_vibe,
+    "nights": _ask_nights,
+    "rooms": _ask_rooms,
+    "amenities": _ask_amenities,
+    "time_required": _ask_time_required,
+    "indoor_outdoor": _ask_indoor_outdoor,
+    "audience": _ask_audience_prompt,
+}
+
+
+def _collect_prefs(types: list[str], lang: str) -> dict | None:
+    prefs: dict = {}
+    for key in prompts_for_types(types):
+        handler = PROMPT_HANDLERS.get(key)
+        if handler is None:
+            continue
+        patch = handler(lang)
+        if patch is None:
+            return None
+        prefs.update(patch)
+    return prefs
 
 
 def _ask_profile(lang: str) -> str | None:
@@ -173,27 +303,11 @@ def run_recommend(lang: str = "tr"):
         return
     top_n = int(top_str)
 
-    budget_str = questionary.text(
-        t("enter_budget_optional", lang),
-        default="",
-    ).ask()
-    if _is_quit(budget_str):
-        return
-    budget = float(budget_str) if budget_str else None
-
     profile = _ask_profile(lang) or DEFAULT_PROFILE
 
-    cuisine = questionary.text(t("prompt_cuisine", lang), default="").ask()
-    if _is_quit(cuisine):
+    prefs = _collect_prefs(place_types, lang)
+    if prefs is None:
         return
-    cuisine = cuisine.strip() or None
-
-    audience = _ask_audience(lang)
-
-    people_str = questionary.text(t("prompt_people", lang), default="2").ask()
-    if _is_quit(people_str):
-        return
-    people = int(people_str) if people_str else 2
 
     show_info(t("fetching_reviews", lang, region=region))
     results = recommend_places(
@@ -201,11 +315,11 @@ def run_recommend(lang: str = "tr"):
         place_type=place_types[0] if len(place_types) == 1 else "restaurant",
         place_types=place_types,
         top_n=top_n,
-        budget=budget,
+        budget=prefs.get("budget"),
         profile=profile,
-        cuisine=cuisine,
-        audience=audience,
-        people=people,
+        cuisine=prefs.get("cuisine"),
+        audience=prefs.get("audience"),
+        people=prefs.get("people", 2),
     )
     show_success(t("reviews_done", lang, count=len(results)))
 
@@ -270,30 +384,20 @@ def run_plan(lang: str = "tr"):
     review_results = []
     if place_types:
         profile = _ask_profile(lang) or DEFAULT_PROFILE
-
-        cuisine = questionary.text(t("prompt_cuisine", lang), default="").ask()
-        if _is_quit(cuisine):
+        prefs = _collect_prefs(place_types, lang)
+        if prefs is None:
             return
-        cuisine = cuisine.strip() or None
-
-        audience = _ask_audience(lang)
-
-        people_str = questionary.text(t("prompt_people", lang), default="2").ask()
-        if _is_quit(people_str):
-            return
-        people = int(people_str) if people_str else 2
-
         show_info(t("fetching_reviews", lang, region=region))
         review_results = recommend_places(
             region,
             place_type=place_types[0] if len(place_types) == 1 else "restaurant",
             place_types=place_types,
             top_n=5,
-            budget=budget,
+            budget=prefs.get("budget", budget),
             profile=profile,
-            cuisine=cuisine,
-            audience=audience,
-            people=people,
+            cuisine=prefs.get("cuisine"),
+            audience=prefs.get("audience"),
+            people=prefs.get("people", 2),
         )
         show_success(t("reviews_done", lang, count=len(review_results)))
         show_recommendations(review_results, lang)

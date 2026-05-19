@@ -27,7 +27,7 @@ def show_summary(text: str, lang: str = "tr"):
     console.print(Panel(Markdown(text), title=header, border_style="yellow", padding=(1, 2)))
 
 
-FACTOR_KEYS = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine")
+FACTOR_KEYS = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects")
 
 
 def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:
@@ -69,6 +69,8 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
         table.add_row(str(i), name, score_str, rating, distance, n_reviews_str, price, address)
 
     console.print()
+    if places and places[0].get("d_half_km") is not None:
+        console.print(f"  [dim]{t('label_distance_scale', lang)}: {places[0]['d_half_km']:.1f} km[/dim]")
     console.print(table)
 
     for place in places:
@@ -76,8 +78,21 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
         if breakdown:
             label = t("label_breakdown", lang)
             console.print(f"\n  [bold]{place.get('name', '')}[/bold] — [dim]{label}:[/dim] {_format_breakdown(breakdown, lang)}")
+        rationale = place.get("llm_rationale")
+        if rationale:
+            console.print(f"    [italic]{t('label_llm_rationale', lang)}:[/italic] {rationale}")
+        pros = place.get("pros") or []
+        cons = place.get("cons") or []
+        if pros:
+            console.print(f"    [green]{t('label_pros', lang)}:[/green]")
+            for p in pros:
+                console.print(f"      [green]✓[/green] {p}")
+        if cons:
+            console.print(f"    [red]{t('label_cons', lang)}:[/red]")
+            for c in cons:
+                console.print(f"      [red]✗[/red] {c}")
         reviews = place.get("reviews", [])
-        if reviews:
+        if reviews and not pros and not cons:
             console.print(f"  [dim]{t('label_reviews', lang)}:[/dim]")
             for rev in reviews[:3]:
                 stars = "⭐" * rev.get("rating", 0)

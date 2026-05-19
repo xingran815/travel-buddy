@@ -1,0 +1,36 @@
+{
+  "region": "Paris",
+  "notes": "Seeded from public 'best of' lists.",
+  "queries": [
+    {
+      "place_type": "restaurant",
+      "profile": "foodie",
+      "expected_top_15": [
+        "Le Comptoir du Relais",
+        "Septime",
+        "Le Chateaubriand",
+        "Frenchie",
+        "Clamato",
+        "Le Servan",
+        "L'Ami Jean",
+        "Bistrot Paul Bert",
+        "Chez L'Ami Louis",
+        "Le Baratin"
+      ]
+    },
+    {
+      "place_type": "museum",
+      "profile": "balanced",
+      "expected_top_10": [
+        "Louvre",
+        "Musée d'Orsay",
+        "Centre Pompidou",
+        "Musée Rodin",
+        "Musée de l'Orangerie",
+        "Petit Palais",
+        "Musée Marmottan Monet",
+        "Picasso Museum"
+      ]
+    }
+  ]
+}

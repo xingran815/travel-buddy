@@ -10,7 +10,7 @@ from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
 from app.planner.generator import generate_plan
 
 
-FACTOR_DISPLAY_ORDER = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine")
+FACTOR_DISPLAY_ORDER = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects")
 
 
 @click.group(invoke_without_command=True)
@@ -101,15 +101,21 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
 @click.option("--cuisine", default=None, help="Preferred cuisine (e.g. turkish, italian, seafood)")
 @click.option("--audience", default=None, type=click.Choice(["family", "adult"]), help="Audience preference")
 @click.option("--people", default=2, type=int, help="Number of people (affects cost fit)")
+@click.option("--query", default=None, help="Free-form query for LLM parsing (e.g. 'romantic seafood with view')")
+@click.option("--aspects", default=None, help="Comma-separated aspect tags (e.g. romantic,view,quiet)")
+@click.option("--llm-parse", is_flag=True, help="Parse --query with LLM into structured prefs")
+@click.option("--llm-rerank", is_flag=True, help="Use LLM to re-rank top-K results")
+@click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
+@click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
 @click.pass_context
-def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people):
+def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects):
     lang = ctx.obj["lang"]
     click.echo(t("welcome", lang))
     click.echo(t("fetching_reviews", lang, region=region))
 
     parsed_types = _parse_types(types)
     parsed_location = _parse_location(location)
-
+    parsed_aspects = [a.strip() for a in (aspects or "").split(",") if a.strip()] or None
     results = recommend_places(
         region,
         place_type=place_type,
@@ -126,11 +132,20 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
         cuisine=cuisine,
         audience=audience,
         people=people,
+        query=query,
+        aspects=parsed_aspects,
+        llm_parse=llm_parse,
+        llm_rerank=llm_rerank,
+        llm_summarize=llm_summarize,
+        llm_aspects=llm_aspects,
+        lang=lang,
     )
     click.echo(t("reviews_done", lang, count=len(results)))
 
     click.echo()
     click.echo(t("header_recommendations", lang))
+    if results and results[0].get("d_half_km") is not None:
+        click.echo(f"  {t('label_distance_scale', lang)}: {results[0]['d_half_km']:.1f} km")
     for i, r in enumerate(results, 1):
         click.echo(f"\n{i}. {r['name']} — ★ {r.get('score', 0):.2f} / 5")
         click.echo(f"   {'Rating' if lang == 'en' else 'Puan'}: {r.get('rating', 'N/A')}/5")
@@ -148,7 +163,15 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
             click.echo(f"   {'Website' if lang == 'en' else 'Web sitesi'}: {r['website']}")
         if r.get("score_breakdown"):
             click.echo(f"   {t('label_breakdown', lang)}: {_format_breakdown(r['score_breakdown'], lang)}")
-        if r.get("reviews"):
+        if r.get("llm_rationale"):
+            click.echo(f"   {t('label_llm_rationale', lang)}: {r['llm_rationale']}")
+        pros = r.get("pros") or []
+        cons = r.get("cons") or []
+        if pros:
+            click.echo(f"   {t('label_pros', lang)}: {'; '.join(pros)}")
+        if cons:
+            click.echo(f"   {t('label_cons', lang)}: {'; '.join(cons)}")
+        if r.get("reviews") and not pros and not cons:
             click.echo(f"   {'Top reviews' if lang == 'en' else 'Yorumlar'}:")
             for rev in r["reviews"][:3]:
                 click.echo(f"     - {rev['author']} ({rev['rating']}/5): {rev['text'][:80]}...")
@@ -172,8 +195,14 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
 @click.option("--cuisine", default=None, help="Preferred cuisine (e.g. turkish, italian, seafood)")
 @click.option("--audience", default=None, type=click.Choice(["family", "adult"]), help="Audience preference")
 @click.option("--people", default=2, type=int, help="Number of people (affects cost fit)")
+@click.option("--query", default=None, help="Free-form query for LLM parsing")
+@click.option("--aspects", default=None, help="Comma-separated aspect tags (e.g. romantic,view,quiet)")
+@click.option("--llm-parse", is_flag=True, help="Parse --query with LLM into structured prefs")
+@click.option("--llm-rerank", is_flag=True, help="Use LLM to re-rank top-K results")
+@click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
+@click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
 @click.pass_context
-def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people):
+def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects):
     lang = ctx.obj["lang"]
     click.echo(t("welcome", lang))
 
@@ -200,6 +229,7 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types, top, ma
     click.echo(t("fetching_reviews", lang, region=region))
     parsed_types = _parse_types(types)
     parsed_location = _parse_location(location)
+    parsed_aspects_plan = [a.strip() for a in (aspects or "").split(",") if a.strip()] or None
 
     review_results = recommend_places(
         region,
@@ -216,6 +246,13 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types, top, ma
         cuisine=cuisine,
         audience=audience,
         people=people,
+        query=query,
+        aspects=parsed_aspects_plan,
+        llm_parse=llm_parse,
+        llm_rerank=llm_rerank,
+        llm_summarize=llm_summarize,
+        llm_aspects=llm_aspects,
+        lang=lang,
     )
     click.echo(t("reviews_done", lang, count=len(review_results)))
 

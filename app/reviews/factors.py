@@ -134,6 +134,22 @@ def audience_score(place_audience: str, preference: str | None) -> float:
     return 0.0
 
 
+def aspects_score(place_aspects: dict[str, float] | None, requested: list[str] | None) -> float:
+    if not requested:
+        return 0.5
+    if not place_aspects:
+        return 0.5
+    vals = []
+    for asp in requested:
+        v = place_aspects.get(asp.strip().lower())
+        if v is None:
+            continue
+        vals.append(max(0.0, min(1.0, float(v))))
+    if not vals:
+        return 0.5
+    return sum(vals) / len(vals)
+
+
 def cuisine_score(types: list[str] | None, name: str, preference: str | None) -> float:
     if not preference:
         return 0.5

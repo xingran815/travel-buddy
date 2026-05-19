@@ -340,6 +340,72 @@ class TestBudgetToMaxPrice:
         assert _budget_to_max_price(None) is None
 
 
+class TestGeocodeRegion:
+    @patch("app.reviews.checker.get_client")
+    def test_returns_default_d_half_when_no_viewport(self, mock_get_client):
+        from app.reviews.checker import _geocode_region, DEFAULT_D_HALF_KM
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        mock_gmaps.geocode.return_value = [{"geometry": {"location": {"lat": 41.0, "lng": 29.0}}}]
+        center, d_half = _geocode_region("Istanbul")
+        assert center == (41.0, 29.0)
+        assert d_half == DEFAULT_D_HALF_KM
+
+    @patch("app.reviews.checker.get_client")
+    def test_returns_d_half_from_viewport(self, mock_get_client):
+        from app.reviews.checker import _geocode_region
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+        # ~12 km between corners along a diagonal (rough)
+        mock_gmaps.geocode.return_value = [{
+            "geometry": {
+                "location": {"lat": 41.0, "lng": 29.0},
+                "viewport": {
+                    "northeast": {"lat": 41.05, "lng": 29.05},
+                    "southwest": {"lat": 40.95, "lng": 28.95},
+                },
+            }
+        }]
+        _, d_half = _geocode_region("CityA")
+        assert d_half > 0.5
+
+    @patch("app.reviews.checker.get_client")
+    def test_big_viewport_yields_larger_d_half(self, mock_get_client):
+        from app.reviews.checker import _geocode_region
+        mock_gmaps = MagicMock()
+        mock_get_client.return_value = mock_gmaps
+
+        small = {
+            "geometry": {
+                "location": {"lat": 41.0, "lng": 29.0},
+                "viewport": {
+                    "northeast": {"lat": 41.02, "lng": 29.02},
+                    "southwest": {"lat": 40.98, "lng": 28.98},
+                },
+            }
+        }
+        big = {
+            "geometry": {
+                "location": {"lat": 41.0, "lng": 29.0},
+                "viewport": {
+                    "northeast": {"lat": 41.50, "lng": 29.50},
+                    "southwest": {"lat": 40.50, "lng": 28.50},
+                },
+            }
+        }
+        mock_gmaps.geocode.side_effect = [[small], [big]]
+        _, d_small = _geocode_region("SmallTown")
+        _, d_big = _geocode_region("BigCity")
+        assert d_big > d_small * 5
+
+    @patch("app.reviews.checker.get_client", side_effect=Exception("no api key"))
+    def test_failure_returns_default(self, mock_get_client):
+        from app.reviews.checker import _geocode_region, DEFAULT_D_HALF_KM
+        center, d_half = _geocode_region("Nowhere")
+        assert center is None
+        assert d_half == DEFAULT_D_HALF_KM
+
+
 class TestClosedFiltering:
     @patch("app.reviews.checker.get_client")
     def test_closed_permanently_excluded(self, mock_get_client):
@@ -374,7 +440,7 @@ class TestClosedFiltering:
 class TestRecommendBreakdown:
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=None)
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
     def test_results_include_breakdown(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [
             {"name": "A", "place_id": "1", "rating": 4.5, "user_ratings_total": 200, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
@@ -385,12 +451,12 @@ class TestRecommendBreakdown:
         assert "score" in result[0]
         assert "score_breakdown" in result[0]
         assert set(result[0]["score_breakdown"].keys()) == {
-            "quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine",
+            "quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects",
         }
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=None)
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
     def test_profile_changes_ordering(self, mock_geo, mock_search, mock_batch):
         # Place A: high rating but expensive. Place B: average rating but very cheap.
         mock_search.return_value = [

@@ -11,6 +11,9 @@ def composite_score(
     budget: float | None = None,
     people: int = 2,
     now: float | None = None,
+    d_half: float = 3.0,
+    aspects: list[str] | None = None,
+    place_aspects: dict[str, float] | None = None,
 ) -> dict:
     place_latlng = None
     lat = place.get("lat")
@@ -25,12 +28,13 @@ def composite_score(
     raw = {
         "quality": f_quality,
         "volume": factors.volume_score(place.get("user_ratings_total", 0)),
-        "distance": factors.distance_score(place_latlng, center),
+        "distance": factors.distance_score(place_latlng, center, d_half=d_half),
         "cost": factors.cost_fit(place.get("price_level"), budget, people),
         "recency": factors.recency_score(reviews, now=now),
         "sentiment": factors.sentiment_score(reviews, fallback=f_quality),
         "audience": factors.audience_score(place_audience, audience),
         "cuisine": factors.cuisine_score(place.get("types"), place.get("name", ""), cuisine),
+        "aspects": factors.aspects_score(place_aspects, aspects),
     }
 
     breakdown = {k: weights.get(k, 0.0) * raw[k] for k in FACTOR_KEYS}

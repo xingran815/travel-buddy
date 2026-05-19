@@ -1,0 +1,40 @@
+{
+  "region": "Istanbul",
+  "notes": "Seeded from public 'best of' lists. Treat as imperfect ground truth.",
+  "queries": [
+    {
+      "place_type": "restaurant",
+      "profile": "foodie",
+      "expected_top_15": [
+        "Mikla",
+        "Karaköy Lokantası",
+        "Çiya Sofrası",
+        "Asitane",
+        "Neolokal",
+        "Ciya Sofrasi",
+        "Hamdi Restaurant",
+        "Pandeli",
+        "Lokanta Maya",
+        "Mürver",
+        "Beyaz Fırın",
+        "Develi Kebap",
+        "Yeni Lokanta"
+      ]
+    },
+    {
+      "place_type": "museum",
+      "profile": "balanced",
+      "expected_top_10": [
+        "Topkapı Palace Museum",
+        "Hagia Sophia",
+        "Istanbul Modern",
+        "Archaeology Museum",
+        "Pera Museum",
+        "Sakıp Sabancı Museum",
+        "Rahmi M. Koç Museum",
+        "Chora Museum",
+        "Museum of Innocence"
+      ]
+    }
+  ]
+}

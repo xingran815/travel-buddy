@@ -1,0 +1,176 @@
+import json
+import tempfile
+from pathlib import Path
+from unittest.mock import patch, MagicMock
+
+import pytest
+
+from app.llm import recommender
+
+
+def _mock_response(content: dict, prompt_tokens=100, completion_tokens=50):
+    msg = MagicMock()
+    msg.content = json.dumps(content)
+    choice = MagicMock(message=msg)
+    response = MagicMock()
+    response.choices = [choice]
+    response.usage = MagicMock(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+    return response
+
+
+@pytest.fixture
+def temp_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(recommender, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(recommender, "ASPECTS_CACHE", tmp_path / "aspects.json")
+    monkeypatch.setattr(recommender, "PROS_CONS_CACHE", tmp_path / "pros_cons.json")
+    return tmp_path
+
+
+class TestParseQuery:
+    @patch("app.llm.recommender.get_client")
+    def test_returns_structured(self, mock_client):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            "cuisine": "seafood",
+            "audience": "adult",
+            "aspects": ["romantic", "view"],
+            "near": "Bosphorus",
+            "price_level": 3,
+        })
+        out = recommender.parse_query("romantic seafood dinner with view near Bosphorus", lang="en")
+        assert out["cuisine"] == "seafood"
+        assert "romantic" in out["aspects"]
+        assert out["raw"]
+
+    def test_empty_query_skips_llm(self):
+        with patch("app.llm.recommender.get_client") as mock_client:
+            out = recommender.parse_query("", lang="en")
+        assert out == {}
+        mock_client.assert_not_called()
+
+    @patch("app.llm.recommender.get_client")
+    def test_llm_error_returns_raw(self, mock_client):
+        mock_client.side_effect = Exception("network down")
+        out = recommender.parse_query("foo", lang="en")
+        assert out == {"raw": "foo"}
+
+
+class TestRerank:
+    @patch("app.llm.recommender.get_client")
+    def test_reorders_by_llm(self, mock_client):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            "order": [
+                {"place_id": "B", "rationale": "Best fit"},
+                {"place_id": "A", "rationale": "Runner up"},
+            ]
+        })
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {}, "reviews": []},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {}, "reviews": []},
+        ]
+        out = recommender.rerank_top_k(places, query="any", profile="balanced", prefs={}, k_out=2)
+        assert [p["place_id"] for p in out] == ["B", "A"]
+        assert out[0]["llm_rationale"] == "Best fit"
+
+    def test_short_list_passes_through(self):
+        places = [{"place_id": "A", "name": "X", "score_breakdown": {}, "reviews": []}]
+        out = recommender.rerank_top_k(places, query="any", profile="balanced", prefs={}, k_out=5)
+        assert out == places
+
+    @patch("app.llm.recommender.get_client")
+    def test_llm_error_falls_back(self, mock_client):
+        mock_client.side_effect = Exception("err")
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {}, "reviews": []},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {}, "reviews": []},
+        ]
+        out = recommender.rerank_top_k(places, query="x", profile="balanced", prefs={}, k_out=2)
+        assert out == places[:2]
+
+
+class TestProsCons:
+    @patch("app.llm.recommender.get_client")
+    def test_returns_pros_cons(self, mock_client, temp_cache):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            "pros": ["Great steak", "Lively"],
+            "cons": ["Expensive", "Loud"],
+        })
+        place = {
+            "place_id": "p1",
+            "name": "Nusr-Et",
+            "reviews": [{"rating": 5, "text": "Great steak!"}],
+        }
+        out = recommender.summarize_pros_cons(place, lang="en")
+        assert out["pros"] == ["Great steak", "Lively"]
+        assert out["cons"] == ["Expensive", "Loud"]
+
+    def test_empty_reviews(self, temp_cache):
+        out = recommender.summarize_pros_cons({"place_id": "x", "reviews": []})
+        assert out == {"pros": [], "cons": []}
+
+    @patch("app.llm.recommender.get_client")
+    def test_cache_hit_skips_llm(self, mock_client, temp_cache):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            "pros": ["A"], "cons": ["B"],
+        })
+        place = {"place_id": "p2", "name": "X", "reviews": [{"rating": 5, "text": "Good"}]}
+        recommender.summarize_pros_cons(place, lang="en")
+        recommender.summarize_pros_cons(place, lang="en")
+        assert client.chat.completions.create.call_count == 1
+
+
+class TestExtractAspects:
+    @patch("app.llm.recommender.get_client")
+    def test_writes_to_cache(self, mock_client, temp_cache):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            "atmosphere": 0.8, "service": 0.5, "value": 0.4,
+            "cleanliness": 0.7, "view": 0.1, "romantic": 0.3,
+            "noise": 0.6, "kid_friendly": 0.2, "quiet": 0.4,
+        })
+        place = {"place_id": "p_aspects", "name": "X", "types": ["restaurant"], "user_ratings_total": 100, "reviews": []}
+        out = recommender.extract_aspects(place)
+        assert out["atmosphere"] == 0.8
+        cache = recommender.load_aspects_cache()
+        assert "p_aspects" in cache
+        assert cache["p_aspects"]["atmosphere"] == 0.8
+
+    @patch("app.llm.recommender.get_client")
+    def test_cache_hit_skips_llm(self, mock_client, temp_cache):
+        client = MagicMock()
+        mock_client.return_value = client
+        client.chat.completions.create.return_value = _mock_response({
+            k: 0.5 for k in recommender.ASPECT_KEYS
+        })
+        place = {"place_id": "p_cached", "name": "X", "types": [], "user_ratings_total": 100, "reviews": []}
+        recommender.extract_aspects(place)
+        recommender.extract_aspects(place)  # same n → cache hit
+        assert client.chat.completions.create.call_count == 1
+
+
+class TestAspectsScoreIntegration:
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._fetch_details_batch")
+    @patch("app.reviews.checker.search_places")
+    @patch("app.llm.recommender.load_aspects_cache")
+    def test_aspects_lookup_applied_to_scoring(self, mock_cache, mock_search, mock_batch, mock_geo):
+        from app.reviews.checker import recommend_places
+        mock_search.return_value = [
+            {"name": "Romantic", "place_id": "r1", "rating": 4.0, "user_ratings_total": 200, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
+            {"name": "Loud", "place_id": "l1", "rating": 4.0, "user_ratings_total": 200, "address": "Addr2", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
+        ]
+        mock_batch.return_value = {"r1": {"reviews": []}, "l1": {"reviews": []}}
+        mock_cache.return_value = {
+            "r1": {"romantic": 0.95, "view": 0.8},
+            "l1": {"romantic": 0.05, "view": 0.1},
+        }
+        results = recommend_places("X", top_n=2, profile="aspect-heavy", aspects=["romantic", "view"])
+        assert results[0]["name"] == "Romantic"

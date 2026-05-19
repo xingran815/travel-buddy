@@ -211,6 +211,78 @@ STRINGS = {
         "en": "cuisine",
         "tr": "mutfak",
     },
+    "factor_aspects": {
+        "en": "aspects",
+        "tr": "özellikler",
+    },
+    "label_distance_scale": {
+        "en": "Distance scale (d_half)",
+        "tr": "Mesafe ölçeği (d_half)",
+    },
+    "label_pros": {
+        "en": "Pros",
+        "tr": "Artıları",
+    },
+    "label_cons": {
+        "en": "Cons",
+        "tr": "Eksileri",
+    },
+    "label_llm_rationale": {
+        "en": "Why",
+        "tr": "Neden",
+    },
+    "prompt_query": {
+        "en": "Describe your trip (optional, enter to skip):",
+        "tr": "Geziyi kendi cümlelerinizle anlatın (isteğe bağlı, atlamak için Enter):",
+    },
+    "prompt_topic": {
+        "en": "Topic (history/art/science, enter to skip):",
+        "tr": "Konu (tarih/sanat/bilim, atlamak için Enter):",
+    },
+    "prompt_vibe": {
+        "en": "Vibe (cocktail/dance/sports, enter to skip):",
+        "tr": "Atmosfer (kokteyl/dans/spor, atlamak için Enter):",
+    },
+    "prompt_indoor_outdoor": {
+        "en": "Indoor or outdoor?",
+        "tr": "İç mekân mı dış mekân mı?",
+    },
+    "indoor": {
+        "en": "Indoor",
+        "tr": "İç mekân",
+    },
+    "outdoor": {
+        "en": "Outdoor",
+        "tr": "Dış mekân",
+    },
+    "any_choice": {
+        "en": "Any",
+        "tr": "Fark etmez",
+    },
+    "prompt_nights": {
+        "en": "Number of nights:",
+        "tr": "Gece sayısı:",
+    },
+    "prompt_rooms": {
+        "en": "Number of rooms:",
+        "tr": "Oda sayısı:",
+    },
+    "prompt_amenities": {
+        "en": "Amenities (comma-separated, enter to skip):",
+        "tr": "Olanaklar (virgülle ayırın, atlamak için Enter):",
+    },
+    "prompt_time_required": {
+        "en": "Time available (hours, enter to skip):",
+        "tr": "Ayrılan süre (saat, atlamak için Enter):",
+    },
+    "prompt_aspects": {
+        "en": "Aspects (e.g. romantic,view,quiet — enter to skip):",
+        "tr": "Özellikler (örn. romantik,manzara,sessiz — atlamak için Enter):",
+    },
+    "judge_summary": {
+        "en": "LLM Judge Summary",
+        "tr": "LLM Hakem Özeti",
+    },
 }
 
 

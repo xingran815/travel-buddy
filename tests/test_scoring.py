@@ -82,6 +82,29 @@ class TestDistanceFactor:
         assert factors.distance_score(None, (41.0, 29.0)) == 0.5
         assert factors.distance_score((41.0, 29.0), None) == 0.5
 
+    def test_larger_d_half_means_higher_score_at_distance(self):
+        small = factors.distance_score((41.0, 29.0), (41.05, 29.05), d_half=1.0)
+        large = factors.distance_score((41.0, 29.0), (41.05, 29.05), d_half=10.0)
+        assert large > small
+
+
+class TestAspectsFactor:
+    def test_no_request_neutral(self):
+        assert factors.aspects_score({"romantic": 0.9}, None) == 0.5
+
+    def test_no_place_aspects_neutral(self):
+        assert factors.aspects_score(None, ["romantic"]) == 0.5
+
+    def test_match_returns_mean(self):
+        assert factors.aspects_score({"romantic": 0.8, "view": 0.6}, ["romantic", "view"]) == pytest.approx(0.7)
+
+    def test_missing_aspect_skipped(self):
+        # only "view" present, "romantic" absent → mean over present
+        assert factors.aspects_score({"view": 0.6}, ["romantic", "view"]) == pytest.approx(0.6)
+
+    def test_clamped(self):
+        assert factors.aspects_score({"x": 1.5, "y": -0.2}, ["x", "y"]) == pytest.approx(0.5)
+
 
 class TestCostFit:
     def test_unknown_price_neutral(self):

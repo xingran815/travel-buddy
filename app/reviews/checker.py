@@ -55,16 +55,32 @@ def _budget_to_max_price(budget: float | None) -> int | None:
     return None
 
 
-def _geocode_region(region: str) -> tuple[float, float] | None:
+DEFAULT_D_HALF_KM = 3.0
+
+
+def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float]:
     try:
         gmaps = get_client()
         result = gmaps.geocode(region)
         if not result:
-            return None
-        loc = result[0]["geometry"]["location"]
-        return (float(loc["lat"]), float(loc["lng"]))
+            return None, DEFAULT_D_HALF_KM
+        geom = result[0]["geometry"]
+        loc = geom["location"]
+        center = (float(loc["lat"]), float(loc["lng"]))
+        viewport = geom.get("viewport") or {}
+        ne = viewport.get("northeast") or {}
+        sw = viewport.get("southwest") or {}
+        if "lat" in ne and "lng" in ne and "lat" in sw and "lng" in sw:
+            diag = factors.haversine(
+                (float(ne["lat"]), float(ne["lng"])),
+                (float(sw["lat"]), float(sw["lng"])),
+            )
+            d_half = max(0.5, diag / 6.0)
+        else:
+            d_half = DEFAULT_D_HALF_KM
+        return center, d_half
     except Exception:
-        return None
+        return None, DEFAULT_D_HALF_KM
 
 
 def search_places(
@@ -203,7 +219,25 @@ def recommend_places(
     cuisine: str | None = None,
     audience: str | None = None,
     people: int = 2,
+    query: str | None = None,
+    aspects: list[str] | None = None,
+    llm_parse: bool = False,
+    llm_rerank: bool = False,
+    llm_summarize: bool = False,
+    llm_aspects: bool = False,
+    lang: str = "en",
 ) -> list[dict]:
+    parsed_prefs: dict = {}
+    if llm_parse and query:
+        from app.llm.recommender import parse_query
+        parsed_prefs = parse_query(query, lang=lang) or {}
+        if not cuisine and parsed_prefs.get("cuisine"):
+            cuisine = parsed_prefs["cuisine"]
+        if not audience and parsed_prefs.get("audience"):
+            audience = parsed_prefs["audience"]
+        if not aspects and parsed_prefs.get("aspects"):
+            aspects = parsed_prefs["aspects"]
+
     types = place_types or [place_type]
     if budget is not None and max_price is None:
         max_price = _budget_to_max_price(budget)
@@ -223,8 +257,20 @@ def recommend_places(
 
     all_places = _deduplicate(all_places)
 
-    center = location or _geocode_region(region)
+    if location is not None:
+        center = location
+        d_half = DEFAULT_D_HALF_KM
+    else:
+        center, d_half = _geocode_region(region)
     weights = get_profile(profile, has_cuisine=bool(cuisine), has_audience=bool(audience))
+
+    aspects_cache: dict[str, dict[str, float]] = {}
+    if aspects:
+        try:
+            from app.llm.recommender import load_aspects_cache
+            aspects_cache = load_aspects_cache()
+        except Exception:
+            aspects_cache = {}
 
     scored = []
     for p in all_places:
@@ -236,6 +282,9 @@ def recommend_places(
             audience=audience,
             budget=budget,
             people=people,
+            d_half=d_half,
+            aspects=aspects,
+            place_aspects=aspects_cache.get(p.get("place_id", "")),
         )
         distance_km = None
         if center and p.get("lat") is not None and p.get("lng") is not None:
@@ -247,13 +296,15 @@ def recommend_places(
             "score_raw": {k: round(v, 3) for k, v in result["raw"].items()},
             "audience_tag": result["audience_tag"],
             "distance_km": distance_km,
+            "d_half_km": round(d_half, 2),
         })
     scored.sort(key=lambda x: x["score"], reverse=True)
 
-    top = scored[:top_n]
+    k_in = max(top_n, top_n + 5) if llm_rerank else top_n
+    top = scored[:k_in]
 
     if not include_details:
-        return top
+        return top[:top_n]
 
     place_ids = [t["place_id"] for t in top]
     details_map = _fetch_details_batch(place_ids)
@@ -267,5 +318,35 @@ def recommend_places(
         merged["score_raw"] = t["score_raw"]
         merged["audience_tag"] = t["audience_tag"]
         merged["distance_km"] = t["distance_km"]
+        merged["d_half_km"] = t["d_half_km"]
         results.append(merged)
+
+    if llm_aspects and aspects:
+        from app.llm.recommender import extract_aspects
+        for p in results:
+            extract_aspects(p)
+
+    if llm_rerank and len(results) > 1:
+        from app.llm.recommender import rerank_top_k
+        prefs = {
+            "cuisine": cuisine,
+            "audience": audience,
+            "people": people,
+            "budget": budget,
+            "aspects": aspects,
+            **{k: v for k, v in parsed_prefs.items() if k != "raw"},
+        }
+        results = rerank_top_k(results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang)
+    else:
+        results = results[:top_n]
+
+    if llm_summarize and results:
+        from app.llm.recommender import summarize_pros_cons_batch
+        summaries = summarize_pros_cons_batch(results, lang=lang)
+        for p in results:
+            s = summaries.get(p.get("place_id", ""))
+            if s:
+                p["pros"] = s.get("pros", [])
+                p["cons"] = s.get("cons", [])
+
     return results
