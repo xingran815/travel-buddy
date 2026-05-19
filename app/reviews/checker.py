@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import GOOGLE_MAPS_API_KEY
 from app.places.cache import CachedGmaps
 from app.reviews import factors
+from app.reviews.categories import CATEGORIES, get_category
 from app.reviews.profiles import get_profile, DEFAULT_PROFILE
 from app.reviews.scoring import composite_score
 
@@ -353,3 +354,28 @@ def recommend_places(
                 p["cons"] = s.get("cons", [])
 
     return results
+
+
+def recommend_by_categories(
+    region: str,
+    category_ids: list[str],
+    top_n_per: int = 5,
+    **shared_kwargs,
+) -> dict[str, list[dict]]:
+    if not category_ids:
+        return {}
+    # Disallow conflicting per-category args
+    for blocked in ("place_type", "place_types", "top_n"):
+        if blocked in shared_kwargs:
+            raise TypeError(f"recommend_by_categories does not accept {blocked!r}; category_ids drives type selection")
+    out: dict[str, list[dict]] = {}
+    for cat_id in category_ids:
+        category = get_category(cat_id)
+        out[cat_id] = recommend_places(
+            region,
+            place_type=category.google_types[0],
+            place_types=list(category.google_types),
+            top_n=top_n_per,
+            **shared_kwargs,
+        )
+    return out

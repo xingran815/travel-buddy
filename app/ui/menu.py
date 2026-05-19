@@ -5,6 +5,7 @@ from app.ui.display import (
     show_translation,
     show_summary,
     show_recommendations,
+    show_categorized_recommendations,
     show_plan,
     show_error,
     show_info,
@@ -13,7 +14,8 @@ from app.ui.display import (
 from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
-from app.reviews.checker import recommend_places
+from app.reviews.categories import CATEGORY_ORDER
+from app.reviews.checker import recommend_places, recommend_by_categories
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
 from app.ui.type_prompts import prompts_for_types
 from app.planner.generator import generate_plan
@@ -216,6 +218,18 @@ def _prompt_continue(lang: str = "tr"):
         raise SystemExit(0)
 
 
+def _ask_categories(lang: str = "tr") -> list[str] | None:
+    labels = [(t(f"category_{c}", lang), c) for c in CATEGORY_ORDER]
+    selected = questionary.checkbox(
+        t("select_categories", lang),
+        choices=[label for label, _ in labels],
+    ).ask()
+    if not selected:
+        return None
+    label_to_id = dict(labels)
+    return [label_to_id[s] for s in selected]
+
+
 def _ask_place_types(lang: str = "tr") -> list[str] | None:
     choices = _localized_type_choices(lang)
     display_names = [c[0] for c in choices]
@@ -291,11 +305,54 @@ def run_recommend(lang: str = "tr"):
     if _is_quit(region) or not region:
         return
 
+    by_types_label = "Browse by place type" if lang == "en" else "Yer türüne göre"
+    by_cats_label = "Browse by category" if lang == "en" else "Kategoriye göre"
+    mode = questionary.select(
+        "How to browse?" if lang == "en" else "Nasıl gezineyim?",
+        choices=[by_types_label, by_cats_label],
+    ).ask()
+    if mode is None:
+        return
+
+    count_choices = ["3", "5", "10"]
+
+    if mode == by_cats_label:
+        category_ids = _ask_categories(lang)
+        if not category_ids:
+            return
+        top_str = questionary.select(
+            "How many per category?" if lang == "en" else "Kategori başına kaç tane?",
+            choices=count_choices,
+        ).ask()
+        if top_str is None:
+            return
+        top_n_per = int(top_str)
+        profile = _ask_profile(lang) or DEFAULT_PROFILE
+        # Use neutral prompts (audience + people + budget) when not single-type.
+        prefs = _collect_prefs([], lang)
+        if prefs is None:
+            return
+        show_info(t("fetching_reviews", lang, region=region))
+        results_by_cat = recommend_by_categories(
+            region,
+            category_ids,
+            top_n_per=top_n_per,
+            budget=prefs.get("budget"),
+            profile=profile,
+            cuisine=prefs.get("cuisine"),
+            audience=prefs.get("audience"),
+            people=prefs.get("people", 2),
+            user_profile=load_profile(),
+        )
+        total = sum(len(v) for v in results_by_cat.values())
+        show_success(t("reviews_done", lang, count=total))
+        show_categorized_recommendations(results_by_cat, lang)
+        return
+
     place_types = _ask_place_types(lang)
     if place_types is None:
         return
 
-    count_choices = ["3", "5", "10"]
     top_str = questionary.select(
         "How many?" if lang == "en" else "Kaç tane?",
         choices=count_choices,

@@ -7,6 +7,8 @@ from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
+from app.reviews.categories import CATEGORIES
+from app.reviews.checker import recommend_by_categories
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE, FACTOR_KEYS
 from app.planner.generator import generate_plan
 from app.profile.store import load_profile, save_profile
@@ -84,10 +86,42 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
     return " · ".join(parts)
 
 
+def _print_place(i: int, r: dict, lang: str) -> None:
+    click.echo(f"\n{i}. {r['name']} — ★ {r.get('score', 0):.2f} / 5")
+    click.echo(f"   {'Rating' if lang == 'en' else 'Puan'}: {r.get('rating', 'N/A')}/5")
+    click.echo(f"   {'Address' if lang == 'en' else 'Adres'}: {r.get('address', 'N/A')}")
+    meta_parts = []
+    if r.get("price_level"):
+        meta_parts.append(f"{'Price' if lang == 'en' else 'Fiyat'}: {'$' * r['price_level']}")
+    if r.get("distance_km") is not None:
+        meta_parts.append(f"{t('label_distance', lang)}: {r['distance_km']:.1f} km")
+    if r.get("user_ratings_total"):
+        meta_parts.append(f"{r['user_ratings_total']} {t('label_reviews', lang).lower()}")
+    if meta_parts:
+        click.echo("   " + " · ".join(meta_parts))
+    if r.get("website"):
+        click.echo(f"   {'Website' if lang == 'en' else 'Web sitesi'}: {r['website']}")
+    if r.get("score_breakdown"):
+        click.echo(f"   {t('label_breakdown', lang)}: {_format_breakdown(r['score_breakdown'], lang)}")
+    if r.get("llm_rationale"):
+        click.echo(f"   {t('label_llm_rationale', lang)}: {r['llm_rationale']}")
+    pros = r.get("pros") or []
+    cons = r.get("cons") or []
+    if pros:
+        click.echo(f"   {t('label_pros', lang)}: {'; '.join(pros)}")
+    if cons:
+        click.echo(f"   {t('label_cons', lang)}: {'; '.join(cons)}")
+    if r.get("reviews") and not pros and not cons:
+        click.echo(f"   {'Top reviews' if lang == 'en' else 'Yorumlar'}:")
+        for rev in r["reviews"][:3]:
+            click.echo(f"     - {rev['author']} ({rev['rating']}/5): {rev['text'][:80]}...")
+
+
 @cli.command()
 @click.argument("region")
 @click.option("--type", "place_type", default="restaurant", help="Place type (restaurant, museum, etc.)")
 @click.option("--types", default=None, help="Comma-separated place types for diverse results (e.g. restaurant,tourist_attraction)")
+@click.option("--category", "categories", default=None, help=f"Comma-separated categories (overrides --type/--types). Choices: {', '.join(sorted(CATEGORIES.keys()))}")
 @click.option("--top", default=5, help="Number of recommendations")
 @click.option("--max-pages", default=1, help="Number of Google Places pages to fetch (1-3)")
 @click.option("--min-price", default=None, type=int, help="Min price level (1-4)")
@@ -109,7 +143,7 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
 @click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
 @click.option("--no-profile", is_flag=True, help="Ignore the persisted user profile for this run")
 @click.pass_context
-def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
+def recommend(ctx, region, place_type, types, categories, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
     if no_cache:
         os.environ["PLACES_CACHE"] = "off"
@@ -117,9 +151,51 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
     click.echo(t("welcome", lang))
     click.echo(t("fetching_reviews", lang, region=region))
 
-    parsed_types = _parse_types(types)
     parsed_location = _parse_location(location)
     parsed_aspects = [a.strip() for a in (aspects or "").split(",") if a.strip()] or None
+    category_ids = [c.strip() for c in (categories or "").split(",") if c.strip()]
+
+    if category_ids:
+        for cid in category_ids:
+            if cid not in CATEGORIES:
+                raise click.BadParameter(f"Unknown category {cid!r}. Choices: {sorted(CATEGORIES.keys())}")
+        results_by_cat = recommend_by_categories(
+            region,
+            category_ids,
+            top_n_per=top,
+            max_pages=max_pages,
+            min_price=min_price,
+            max_price=max_price,
+            budget=budget,
+            location=parsed_location,
+            radius=radius,
+            include_details=not no_details,
+            profile=profile,
+            cuisine=cuisine,
+            audience=audience,
+            people=people,
+            query=query,
+            aspects=parsed_aspects,
+            llm_parse=llm_parse,
+            llm_rerank=llm_rerank,
+            llm_summarize=llm_summarize,
+            llm_aspects=llm_aspects,
+            lang=lang,
+            user_profile=user_profile,
+        )
+        total = sum(len(v) for v in results_by_cat.values())
+        click.echo(t("reviews_done", lang, count=total))
+        for cid, places in results_by_cat.items():
+            click.echo()
+            click.echo(f"═══ {t(f'category_{cid}', lang)} ═══")
+            if not places:
+                click.echo(f"  ({'no results' if lang == 'en' else 'sonuç yok'})")
+                continue
+            for i, r in enumerate(places, 1):
+                _print_place(i, r, lang)
+        return
+
+    parsed_types = _parse_types(types)
     results = recommend_places(
         region,
         place_type=place_type,
@@ -152,34 +228,7 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
     if results and results[0].get("d_half_km") is not None:
         click.echo(f"  {t('label_distance_scale', lang)}: {results[0]['d_half_km']:.1f} km")
     for i, r in enumerate(results, 1):
-        click.echo(f"\n{i}. {r['name']} — ★ {r.get('score', 0):.2f} / 5")
-        click.echo(f"   {'Rating' if lang == 'en' else 'Puan'}: {r.get('rating', 'N/A')}/5")
-        click.echo(f"   {'Address' if lang == 'en' else 'Adres'}: {r.get('address', 'N/A')}")
-        meta_parts = []
-        if r.get("price_level"):
-            meta_parts.append(f"{'Price' if lang == 'en' else 'Fiyat'}: {'$' * r['price_level']}")
-        if r.get("distance_km") is not None:
-            meta_parts.append(f"{t('label_distance', lang)}: {r['distance_km']:.1f} km")
-        if r.get("user_ratings_total"):
-            meta_parts.append(f"{r['user_ratings_total']} {t('label_reviews', lang).lower()}")
-        if meta_parts:
-            click.echo("   " + " · ".join(meta_parts))
-        if r.get("website"):
-            click.echo(f"   {'Website' if lang == 'en' else 'Web sitesi'}: {r['website']}")
-        if r.get("score_breakdown"):
-            click.echo(f"   {t('label_breakdown', lang)}: {_format_breakdown(r['score_breakdown'], lang)}")
-        if r.get("llm_rationale"):
-            click.echo(f"   {t('label_llm_rationale', lang)}: {r['llm_rationale']}")
-        pros = r.get("pros") or []
-        cons = r.get("cons") or []
-        if pros:
-            click.echo(f"   {t('label_pros', lang)}: {'; '.join(pros)}")
-        if cons:
-            click.echo(f"   {t('label_cons', lang)}: {'; '.join(cons)}")
-        if r.get("reviews") and not pros and not cons:
-            click.echo(f"   {'Top reviews' if lang == 'en' else 'Yorumlar'}:")
-            for rev in r["reviews"][:3]:
-                click.echo(f"     - {rev['author']} ({rev['rating']}/5): {rev['text'][:80]}...")
+        _print_place(i, r, lang)
 
 
 @cli.command()

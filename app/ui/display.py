@@ -98,6 +98,18 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
                 console.print(f"    {stars} [dim]{rev.get('author', '')}[/dim]: {rev.get('text', '')[:120]}")
 
 
+def show_categorized_recommendations(results_by_category: dict[str, list[dict]], lang: str = "tr"):
+    from app.i18n.strings import t
+    for cat_id, places in results_by_category.items():
+        label = t(f"category_{cat_id}", lang)
+        console.print()
+        console.print(Panel(label, style="bold cyan", padding=(0, 2)))
+        if not places:
+            console.print(f"  [dim]({'no results' if lang == 'en' else 'sonuç yok'})[/dim]")
+            continue
+        show_recommendations(places, lang)
+
+
 def show_plan(plan_text: str, lang: str = "tr"):
     from app.i18n.strings import t
     header = t("header_plan", lang)
