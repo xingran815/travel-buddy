@@ -2,7 +2,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
-from rich.text import Text
 
 from app.reviews.profiles import FACTOR_KEYS
 
@@ -10,7 +9,6 @@ console = Console()
 
 
 def show_welcome(lang: str = "tr"):
-    from app.i18n.strings import t
     title = "🌍 Travel Recommender" if lang == "en" else "🌍 Seyahat Öneri"
     console.print(Panel(title, style="bold cyan", padding=(1, 2)))
 
@@ -76,7 +74,8 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
         breakdown = place.get("score_breakdown")
         if breakdown:
             label = t("label_breakdown", lang)
-            console.print(f"\n  [bold]{place.get('name', '')}[/bold] — [dim]{label}:[/dim] {_format_breakdown(breakdown, lang)}")
+            bd = _format_breakdown(breakdown, lang)
+            console.print(f"\n  [bold]{place.get('name', '')}[/bold] — [dim]{label}:[/dim] {bd}")
         rationale = place.get("llm_rationale")
         if rationale:
             console.print(f"    [italic]{t('label_llm_rationale', lang)}:[/italic] {rationale}")

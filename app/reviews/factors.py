@@ -37,8 +37,8 @@ def haversine(a: tuple[float, float], b: tuple[float, float]) -> float:
     return 2 * r * math.asin(math.sqrt(h))
 
 
-def _bayesian(rating: float, count: int, C: int = 25, M: float = 3.5) -> float:
-    return (count / (count + C)) * rating + (C / (count + C)) * M
+def _bayesian(rating: float, count: int, c_prior: int = 25, m_prior: float = 3.5) -> float:
+    return (count / (count + c_prior)) * rating + (c_prior / (count + c_prior)) * m_prior
 
 
 def quality_score(rating: float, review_count: int) -> float:
@@ -52,7 +52,11 @@ def volume_score(review_count: int) -> float:
     return min(1.0, math.log10(review_count + 1) / math.log10(5001))
 
 
-def distance_score(place_latlng: tuple[float, float] | None, center: tuple[float, float] | None, d_half: float = 3.0) -> float:
+def distance_score(
+    place_latlng: tuple[float, float] | None,
+    center: tuple[float, float] | None,
+    d_half: float = 3.0,
+) -> float:
     if place_latlng is None or center is None:
         return 0.5
     d_km = haversine(center, place_latlng)

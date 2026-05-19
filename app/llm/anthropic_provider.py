@@ -34,7 +34,10 @@ class AnthropicProvider:
     def _call(self, messages: list[dict], temperature: float, model: str | None, json_mode: bool) -> LLMResult:
         system, msgs = self._split_system(messages)
         if json_mode:
-            json_instruction = "Respond with a single valid JSON object and nothing else. Do not include markdown code fences."
+            json_instruction = (
+                "Respond with a single valid JSON object and nothing else. "
+                "Do not include markdown code fences."
+            )
             system = f"{system}\n\n{json_instruction}" if system else json_instruction
         response = self.client.messages.create(
             model=model or self.default_model,

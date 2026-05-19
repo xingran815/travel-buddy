@@ -1,5 +1,5 @@
 import os
-import sys
+
 import click
 from app.i18n.strings import t
 from app.config import APP_LANG
@@ -7,7 +7,7 @@ from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
-from app.reviews.categories import CATEGORIES
+from app.reviews.categories import CATEGORIES  # pylint: disable=unused-import
 from app.reviews.checker import recommend_by_categories
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE, FACTOR_KEYS
 from app.planner.generator import generate_plan
@@ -122,22 +122,38 @@ def _print_place(i: int, r: dict, lang: str) -> None:
 
 @cli.command()
 @click.argument("region")
-@click.option("--type", "place_type", default="restaurant", help="Place type (restaurant, museum, etc.)")
-@click.option("--types", default=None, help="Comma-separated place types for diverse results (e.g. restaurant,tourist_attraction)")
-@click.option("--category", "categories", default=None, help=f"Comma-separated categories (overrides --type/--types). Choices: {', '.join(sorted(CATEGORIES.keys()))}")
+@click.option("--type", "place_type", default="restaurant",
+              help="Place type (restaurant, museum, etc.)")
+@click.option("--types", default=None,
+              help="Comma-separated place types for diverse results (e.g. restaurant,tourist_attraction)")
+@click.option(
+    "--category", "categories", default=None,
+    help=f"Comma-separated categories (overrides --type/--types). "
+         f"Choices: {', '.join(sorted(CATEGORIES.keys()))}",
+)
 @click.option("--top", default=5, help="Number of recommendations")
 @click.option("--max-pages", default=1, help="Number of Google Places pages to fetch (1-3)")
 @click.option("--min-price", default=None, type=int, help="Min price level (1-4)")
 @click.option("--max-price", default=None, type=int, help="Max price level (1-4)")
-@click.option("--budget", default=None, type=float, help="Budget in USD (auto-derives max price)")
-@click.option("--location", default=None, help="Center point as 'lat,lng' for radius search")
-@click.option("--radius", default=None, type=int, help="Search radius in meters (requires --location)")
-@click.option("--no-details", is_flag=True, help="Skip detail fetching (faster, no reviews)")
-@click.option("--profile", default=DEFAULT_PROFILE, type=click.Choice(sorted(PROFILES.keys())), help="Recommendation weight profile")
-@click.option("--cuisine", default=None, help="Preferred cuisine (e.g. turkish, italian, seafood)")
-@click.option("--audience", default=None, type=click.Choice(["family", "adult"]), help="Audience preference")
-@click.option("--people", default=2, type=int, help="Number of people (affects cost fit)")
-@click.option("--query", default=None, help="Free-form query for LLM parsing (e.g. 'romantic seafood with view')")
+@click.option("--budget", default=None, type=float,
+              help="Budget in USD (auto-derives max price)")
+@click.option("--location", default=None,
+              help="Center point as 'lat,lng' for radius search")
+@click.option("--radius", default=None, type=int,
+              help="Search radius in meters (requires --location)")
+@click.option("--no-details", is_flag=True,
+              help="Skip detail fetching (faster, no reviews)")
+@click.option("--profile", default=DEFAULT_PROFILE,
+              type=click.Choice(sorted(PROFILES.keys())),
+              help="Recommendation weight profile")
+@click.option("--cuisine", default=None,
+              help="Preferred cuisine (e.g. turkish, italian, seafood)")
+@click.option("--audience", default=None, type=click.Choice(["family", "adult"]),
+              help="Audience preference")
+@click.option("--people", default=2, type=int,
+              help="Number of people (affects cost fit)")
+@click.option("--query", default=None,
+              help="Free-form query for LLM parsing (e.g. 'romantic seafood with view')")
 @click.option("--aspects", default=None, help="Comma-separated aspect tags (e.g. romantic,view,quiet)")
 @click.option("--llm-parse", is_flag=True, help="Parse --query with LLM into structured prefs")
 @click.option("--llm-rerank", is_flag=True, help="Use LLM to re-rank top-K results")
@@ -146,7 +162,11 @@ def _print_place(i: int, r: dict, lang: str) -> None:
 @click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
 @click.option("--no-profile", is_flag=True, help="Ignore the persisted user profile for this run")
 @click.pass_context
-def recommend(ctx, region, place_type, types, categories, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
+def recommend(ctx, region, place_type, types, categories, top, max_pages,
+              min_price, max_price, budget, location, radius, no_details,
+              profile, cuisine, audience, people, query, aspects,
+              llm_parse, llm_rerank, llm_summarize, llm_aspects,
+              no_cache, no_profile):
     lang = ctx.obj["lang"]
     if missing_keys("places") and run_wizard("places"):
         return
@@ -250,9 +270,13 @@ def recommend(ctx, region, place_type, types, categories, top, max_pages, min_pr
 @click.option("--max-price", default=None, type=int, help="Max price level (1-4)")
 @click.option("--location", default=None, help="Center point as 'lat,lng' for radius search")
 @click.option("--radius", default=None, type=int, help="Search radius in meters (requires --location)")
-@click.option("--profile", default=DEFAULT_PROFILE, type=click.Choice(sorted(PROFILES.keys())), help="Recommendation weight profile")
-@click.option("--cuisine", default=None, help="Preferred cuisine (e.g. turkish, italian, seafood)")
-@click.option("--audience", default=None, type=click.Choice(["family", "adult"]), help="Audience preference")
+@click.option("--profile", default=DEFAULT_PROFILE,
+              type=click.Choice(sorted(PROFILES.keys())),
+              help="Recommendation weight profile")
+@click.option("--cuisine", default=None,
+              help="Preferred cuisine (e.g. turkish, italian, seafood)")
+@click.option("--audience", default=None, type=click.Choice(["family", "adult"]),
+              help="Audience preference")
 @click.option("--people", default=2, type=int, help="Number of people (affects cost fit)")
 @click.option("--query", default=None, help="Free-form query for LLM parsing")
 @click.option("--aspects", default=None, help="Comma-separated aspect tags (e.g. romantic,view,quiet)")
@@ -263,7 +287,10 @@ def recommend(ctx, region, place_type, types, categories, top, max_pages, min_pr
 @click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
 @click.option("--no-profile", is_flag=True, help="Ignore the persisted user profile for this run")
 @click.pass_context
-def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
+def plan(ctx, region, budget, days, preferences, url, place_type, types,
+         top, max_pages, min_price, max_price, location, radius, profile,
+         cuisine, audience, people, query, aspects, llm_parse, llm_rerank,
+         llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
     if (missing_keys("places") or missing_keys("llm")) and run_wizard("places", "llm"):
         return
@@ -342,10 +369,11 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types, top, ma
 
 @cli.command()
 @click.argument("place_id")
-@click.option("--action", type=click.Choice(["liked", "disliked", "visited"]), required=True, help="Mark this place as liked/disliked/visited")
+@click.option("--action", type=click.Choice(["liked", "disliked", "visited"]),
+              required=True, help="Mark this place as liked/disliked/visited")
 @click.option("--rating", default=None, type=int, help="Optional 1-5 rating to attach to a 'liked' action")
 @click.pass_context
-def feedback(ctx, place_id, action, rating):
+def feedback(_ctx, place_id, action, rating):
     profile = load_profile()
     profile.record(place_id, action=action, rating=rating)
     path = save_profile(profile)
@@ -353,4 +381,4 @@ def feedback(ctx, place_id, action, rating):
 
 
 if __name__ == "__main__":
-    cli()
+    cli()  # pylint: disable=no-value-for-parameter

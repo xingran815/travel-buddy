@@ -177,7 +177,12 @@ def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
     return result
 
 
-def summarize_pros_cons_batch(places: list[dict], lang: str = "en", budget=None, max_workers: int = 5) -> dict[str, dict]:
+def summarize_pros_cons_batch(
+    places: list[dict],
+    lang: str = "en",
+    budget=None,
+    max_workers: int = 5,
+) -> dict[str, dict]:
     out: dict[str, dict] = {}
     if not places:
         return out

@@ -1,12 +1,13 @@
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import click
 import googlemaps
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.config import GOOGLE_MAPS_API_KEY
 from app.places.cache import CachedGmaps
 from app.reviews import factors
-from app.reviews.categories import CATEGORIES, get_category
+from app.reviews.categories import get_category
 from app.reviews.profiles import get_profile, DEFAULT_PROFILE
 from app.reviews.scoring import composite_score
 

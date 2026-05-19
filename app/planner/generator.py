@@ -15,13 +15,15 @@ def generate_plan(
     review_text = ""
     if review_results:
         for r in review_results:
-            review_text += f"- {r.get('name', 'Unknown')}: Rating {r.get('rating', 'N/A')}, Address: {r.get('address', 'N/A')}\n"
+            review_text += (
+                f"- {r.get('name', 'Unknown')}: Rating {r.get('rating', 'N/A')}, "
+                f"Address: {r.get('address', 'N/A')}\n"
+            )
             if r.get("price_level"):
                 review_text += f"  Price level: {r['price_level']}\n"
             for rev in r.get("reviews", [])[:max_reviews_per_place]:
                 review_text += f"  Review ({rev.get('rating')}/5): {rev.get('text', '')[:max_review_length]}\n"
 
-    lang_name = "Turkish" if lang == "tr" else "English"
     lang_instruction = "Türkçe olarak" if lang == "tr" else "in English"
 
     user_content = f"""Create a detailed {days}-day travel plan for {destination}.
@@ -49,7 +51,10 @@ Please provide:
 
 Write the plan {lang_instruction}."""
 
-    system_content = f"You are an expert travel planner. Create realistic, detailed travel itineraries. Respond {lang_instruction}."
+    system_content = (
+        f"You are an expert travel planner. Create realistic, detailed travel itineraries. "
+        f"Respond {lang_instruction}."
+    )
 
     result = get_provider().chat_text(
         [

@@ -45,7 +45,10 @@ def judge(query: dict, results: list[dict], lang: str = "en", budget=None) -> di
             budget.add_usage(result.usage)
         return _coerce_verdict(json.loads(result.text.strip()))
     except Exception as e:
-        return {"relevance": 0, "diversity": 0, "coverage": 0, "freshness": 0, "overall": 0.0, "rationale": f"error: {e}"}
+        return {
+            "relevance": 0, "diversity": 0, "coverage": 0,
+            "freshness": 0, "overall": 0.0, "rationale": f"error: {e}",
+        }
 
 
 def _coerce_verdict(raw: dict) -> dict:

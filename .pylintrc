@@ -1,0 +1,25 @@
+[MAIN]
+ignore=venv,downloads,cache,evals,.pytest_cache
+jobs=0
+py-version=3.14
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    import-outside-toplevel,
+    broad-exception-caught,
+    too-many-locals,
+    too-many-positional-arguments,
+    too-many-arguments,
+    too-many-branches,
+    too-many-statements,
+    too-many-return-statements,
+    duplicate-code
+
+[FORMAT]
+max-line-length=120
+
+[DESIGN]
+max-args=10

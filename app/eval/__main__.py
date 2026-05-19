@@ -76,7 +76,12 @@ def _print_row(row: dict) -> None:
         print(f"  extra:  {row['extra'][:5]}")
 
 
-def run_judge(city_filter: str | None = None, top_n: int = 5, profile_override: str | None = None, baseline: str | None = None) -> dict:
+def run_judge(
+    city_filter: str | None = None,
+    top_n: int = 5,
+    profile_override: str | None = None,
+    baseline: str | None = None,
+) -> dict:
     from app.eval.llm_judge import judge
     budget = TokenBudget()
     files = sorted(GOLDEN_DIR.glob("*.json"))
@@ -150,11 +155,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--top-n", type=int, default=10)
     p.add_argument("--profile-override", default=None)
     p.add_argument("--judge", action="store_true", help="Use LLM-as-judge instead of golden lists")
-    p.add_argument("--baseline", default=None, help="In judge mode, compare against this baseline label (e.g. 'old_bayesian')")
+    p.add_argument("--baseline", default=None,
+                   help="In judge mode, compare against this baseline label (e.g. 'old_bayesian')")
     args = p.parse_args(argv)
 
     if args.judge:
-        run_judge(city_filter=args.city, top_n=args.top_n, profile_override=args.profile_override, baseline=args.baseline)
+        run_judge(
+            city_filter=args.city, top_n=args.top_n,
+            profile_override=args.profile_override, baseline=args.baseline,
+        )
     else:
         run_golden(city_filter=args.city, top_n=args.top_n, profile_override=args.profile_override)
     return 0

@@ -7,7 +7,10 @@ def translate_to_turkish(text: str, source_language: str = "auto") -> str:
         [
             {
                 "role": "system",
-                "content": "You are a professional translator. Translate the following text to Turkish. Output only the Turkish translation, nothing else.",
+                "content": (
+                    "You are a professional translator. Translate the following text to Turkish. "
+                    "Output only the Turkish translation, nothing else."
+                ),
             },
             {
                 "role": "user",
@@ -24,7 +27,11 @@ def summarize_in_turkish(text: str) -> str:
         [
             {
                 "role": "system",
-                "content": "Sen profesyonel bir seyahat yazarısın. Verilen metni Türkçe olarak özetle. Özette önemli yerler, restoranlar ve aktiviteler vurgulansın. Sadece özeti yaz, başka bir şey ekleme.",
+                "content": (
+                    "Sen profesyonel bir seyahat yazarısın. Verilen metni Türkçe olarak özetle. "
+                    "Özette önemli yerler, restoranlar ve aktiviteler vurgulansın. "
+                    "Sadece özeti yaz, başka bir şey ekleme."
+                ),
             },
             {
                 "role": "user",

@@ -16,7 +16,7 @@ from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.categories import CATEGORY_ORDER
 from app.reviews.checker import recommend_places, recommend_by_categories
-from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
+from app.reviews.profiles import DEFAULT_PROFILE
 from app.ui.type_prompts import prompts_for_types
 from app.planner.generator import generate_plan
 from app.profile.store import load_profile
@@ -255,14 +255,13 @@ def _ask_place_types(lang: str = "tr") -> list[str] | None:
         if selected is None:
             return None
         return [value_map[selected]]
-    else:
-        selected = questionary.checkbox(
-            t("select_place_types", lang),
-            choices=display_names,
-        ).ask()
-        if not selected:
-            return None
-        return [value_map[s] for s in selected]
+    selected = questionary.checkbox(
+        t("select_place_types", lang),
+        choices=display_names,
+    ).ask()
+    if not selected:
+        return None
+    return [value_map[s] for s in selected]
 
 
 def run_summarize(lang: str = "tr"):
@@ -409,7 +408,8 @@ def run_plan(lang: str = "tr"):
     days = int(days_str) if days_str else 3
 
     preferences = questionary.text(
-        "Preferences (comma separated, enter to skip):" if lang == "en" else "Tercihler (virgülle ayırın, atlamak için Enter):",
+        ("Preferences (comma separated, enter to skip):" if lang == "en"
+         else "Tercihler (virgülle ayırın, atlamak için Enter):"),
         default="",
     ).ask()
     if _is_quit(preferences):
@@ -476,7 +476,7 @@ def run_plan(lang: str = "tr"):
     show_plan(itinerary, lang)
 
 
-def run_settings(lang: str) -> str:
+def run_settings(_lang: str) -> str:
     choices = ["English", "Türkçe"]
     selected = questionary.select(
         "Language / Dil:",

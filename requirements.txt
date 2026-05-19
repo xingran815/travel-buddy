@@ -7,3 +7,4 @@ python-dotenv>=1.0.0
 pytest>=8.0.0
 questionary>=2.0.0
 rich>=13.0.0
+pylint>=3.3.0

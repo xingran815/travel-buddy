@@ -10,6 +10,12 @@ cp .env.example .env   # fill in LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, GOOGLE_MA
 
 Config is loaded from `.env` at **import time** as module-level globals (`app/config.py`). Changing `.env` requires restarting the process.
 
+## Linting
+
+```bash
+pylint app main.py     # static analysis (config: .pylintrc)
+```
+
 ## Testing
 
 ```bash

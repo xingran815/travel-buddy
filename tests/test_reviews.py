@@ -157,24 +157,24 @@ class TestRecommendPlaces:
 
 class TestBayesianScore:
     def test_high_review_count_trusts_own_rating(self):
-        score = _bayesian(4.8, 2000, C=25, M=3.5)
+        score = _bayesian(4.8, 2000, c_prior=25, m_prior=3.5)
         assert score > 4.7
 
     def test_low_review_count_blends_toward_prior(self):
-        score = _bayesian(5.0, 1, C=25, M=3.5)
+        score = _bayesian(5.0, 1, c_prior=25, m_prior=3.5)
         assert 3.5 < score < 4.0
 
     def test_zero_reviews_returns_prior(self):
-        score = _bayesian(0.0, 0, C=25, M=3.5)
+        score = _bayesian(0.0, 0, c_prior=25, m_prior=3.5)
         assert score == pytest.approx(3.5)
 
     def test_better_than_old_formula_for_low_counts(self):
         old = 4.8 * min(50, 100) / 100
-        bayesian = _bayesian(4.8, 50, C=25, M=3.5)
+        bayesian = _bayesian(4.8, 50, c_prior=25, m_prior=3.5)
         assert bayesian > old
 
     def test_custom_C_and_M(self):
-        score = _bayesian(4.0, 10, C=50, M=3.0)
+        score = _bayesian(4.0, 10, c_prior=50, m_prior=3.0)
         assert 3.0 < score < 4.0
 
 
