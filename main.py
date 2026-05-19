@@ -7,11 +7,9 @@ from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
 from app.llm.client import translate_to_turkish, summarize_in_turkish
 from app.reviews.checker import recommend_places
-from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
+from app.reviews.profiles import PROFILES, DEFAULT_PROFILE, FACTOR_KEYS
 from app.planner.generator import generate_plan
-
-
-FACTOR_DISPLAY_ORDER = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects")
+from app.profile.store import load_profile, save_profile
 
 
 @click.group(invoke_without_command=True)
@@ -80,7 +78,7 @@ def summarize(ctx, url):
 
 def _format_breakdown(breakdown: dict, lang: str) -> str:
     parts = []
-    for k in FACTOR_DISPLAY_ORDER:
+    for k in FACTOR_KEYS:
         label = t(f"factor_{k}", lang)
         parts.append(f"{label} {breakdown.get(k, 0.0):.2f}")
     return " · ".join(parts)
@@ -109,11 +107,13 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
 @click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
 @click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
 @click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
+@click.option("--no-profile", is_flag=True, help="Ignore the persisted user profile for this run")
 @click.pass_context
-def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache):
+def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_price, budget, location, radius, no_details, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
     if no_cache:
         os.environ["PLACES_CACHE"] = "off"
+    user_profile = None if no_profile else load_profile()
     click.echo(t("welcome", lang))
     click.echo(t("fetching_reviews", lang, region=region))
 
@@ -143,6 +143,7 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
         llm_summarize=llm_summarize,
         llm_aspects=llm_aspects,
         lang=lang,
+        user_profile=user_profile,
     )
     click.echo(t("reviews_done", lang, count=len(results)))
 
@@ -206,11 +207,13 @@ def recommend(ctx, region, place_type, types, top, max_pages, min_price, max_pri
 @click.option("--llm-summarize", is_flag=True, help="Use LLM to generate per-place pros/cons")
 @click.option("--llm-aspects", is_flag=True, help="Use LLM to tag place aspects for scoring")
 @click.option("--no-cache", is_flag=True, help="Bypass the local Google Places HTTP cache")
+@click.option("--no-profile", is_flag=True, help="Ignore the persisted user profile for this run")
 @click.pass_context
-def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache):
+def plan(ctx, region, budget, days, preferences, url, place_type, types, top, max_pages, min_price, max_price, location, radius, profile, cuisine, audience, people, query, aspects, llm_parse, llm_rerank, llm_summarize, llm_aspects, no_cache, no_profile):
     lang = ctx.obj["lang"]
     if no_cache:
         os.environ["PLACES_CACHE"] = "off"
+    user_profile = None if no_profile else load_profile()
     click.echo(t("welcome", lang))
 
     youtube_summary = ""
@@ -260,6 +263,7 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types, top, ma
         llm_summarize=llm_summarize,
         llm_aspects=llm_aspects,
         lang=lang,
+        user_profile=user_profile,
     )
     click.echo(t("reviews_done", lang, count=len(review_results)))
 
@@ -278,6 +282,18 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types, top, ma
     click.echo()
     click.echo(t("header_plan", lang))
     click.echo(itinerary)
+
+
+@cli.command()
+@click.argument("place_id")
+@click.option("--action", type=click.Choice(["liked", "disliked", "visited"]), required=True, help="Mark this place as liked/disliked/visited")
+@click.option("--rating", default=None, type=int, help="Optional 1-5 rating to attach to a 'liked' action")
+@click.pass_context
+def feedback(ctx, place_id, action, rating):
+    profile = load_profile()
+    profile.record(place_id, action=action, rating=rating)
+    path = save_profile(profile)
+    click.echo(f"Recorded {action} for place_id={place_id} (profile: {path})")
 
 
 if __name__ == "__main__":

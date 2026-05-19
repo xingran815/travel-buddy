@@ -17,6 +17,7 @@ from app.reviews.checker import recommend_places
 from app.reviews.profiles import PROFILES, DEFAULT_PROFILE
 from app.ui.type_prompts import prompts_for_types
 from app.planner.generator import generate_plan
+from app.profile.store import load_profile
 
 
 PROFILE_ORDER = ("balanced", "family", "adult", "foodie", "budget", "aspect-heavy")
@@ -320,6 +321,7 @@ def run_recommend(lang: str = "tr"):
         cuisine=prefs.get("cuisine"),
         audience=prefs.get("audience"),
         people=prefs.get("people", 2),
+        user_profile=load_profile(),
     )
     show_success(t("reviews_done", lang, count=len(results)))
 
@@ -398,6 +400,7 @@ def run_plan(lang: str = "tr"):
             cuisine=prefs.get("cuisine"),
             audience=prefs.get("audience"),
             people=prefs.get("people", 2),
+            user_profile=load_profile(),
         )
         show_success(t("reviews_done", lang, count=len(review_results)))
         show_recommendations(review_results, lang)

@@ -4,6 +4,8 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.text import Text
 
+from app.reviews.profiles import FACTOR_KEYS
+
 console = Console()
 
 
@@ -25,9 +27,6 @@ def show_summary(text: str, lang: str = "tr"):
     header = t("header_summary", lang)
     console.print()
     console.print(Panel(Markdown(text), title=header, border_style="yellow", padding=(1, 2)))
-
-
-FACTOR_KEYS = ("quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects")
 
 
 def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:

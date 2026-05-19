@@ -227,6 +227,7 @@ def recommend_places(
     llm_summarize: bool = False,
     llm_aspects: bool = False,
     lang: str = "en",
+    user_profile=None,
 ) -> list[dict]:
     parsed_prefs: dict = {}
     if llm_parse and query:
@@ -286,6 +287,7 @@ def recommend_places(
             d_half=d_half,
             aspects=aspects,
             place_aspects=aspects_cache.get(p.get("place_id", "")),
+            user_profile=user_profile,
         )
         distance_km = None
         if center and p.get("lat") is not None and p.get("lng") is not None:

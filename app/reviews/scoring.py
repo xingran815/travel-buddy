@@ -14,6 +14,7 @@ def composite_score(
     d_half: float = 3.0,
     aspects: list[str] | None = None,
     place_aspects: dict[str, float] | None = None,
+    user_profile=None,
 ) -> dict:
     place_latlng = None
     lat = place.get("lat")
@@ -35,6 +36,7 @@ def composite_score(
         "audience": factors.audience_score(place_audience, audience),
         "cuisine": factors.cuisine_score(place.get("types"), place.get("name", ""), cuisine),
         "aspects": factors.aspects_score(place_aspects, aspects),
+        "history": factors.history_score(place.get("place_id", ""), user_profile, now=now),
     }
 
     breakdown = {k: weights.get(k, 0.0) * raw[k] for k in FACTOR_KEYS}

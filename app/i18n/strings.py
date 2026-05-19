@@ -215,6 +215,10 @@ STRINGS = {
         "en": "aspects",
         "tr": "özellikler",
     },
+    "factor_history": {
+        "en": "history",
+        "tr": "geçmiş",
+    },
     "label_distance_scale": {
         "en": "Distance scale (d_half)",
         "tr": "Mesafe ölçeği (d_half)",

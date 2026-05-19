@@ -150,6 +150,43 @@ def aspects_score(place_aspects: dict[str, float] | None, requested: list[str] |
     return sum(vals) / len(vals)
 
 
+def history_score(
+    place_id: str,
+    user_profile,
+    now: float | None = None,
+    decay_days: float = 180.0,
+    saturation_k: float = 0.4,
+) -> float:
+    if user_profile is None or not place_id:
+        return 0.55
+    summary = user_profile.summary_for(place_id)
+    if summary is None:
+        return 0.55
+
+    now_ts = now if now is not None else time.time()
+    liked_weight = 0.0
+    disliked_weight = 0.0
+    for action, ts, rating in summary.events:
+        age_days = max(0.0, (now_ts - ts) / 86400.0)
+        decay = math.exp(-age_days / decay_days)
+        if action == "liked":
+            liked_weight += decay * ((rating / 5.0) if rating else 1.0)
+        elif action == "disliked":
+            disliked_weight += decay
+
+    liked_weight += 0.5 * summary.compacted_liked
+    disliked_weight += 0.5 * summary.compacted_disliked
+
+    net = liked_weight - disliked_weight
+    if abs(net) < 1e-9:
+        if (liked_weight + disliked_weight) > 0 or summary.visited:
+            return 0.5
+        return 0.55
+    if net > 0:
+        return min(1.0, 0.5 + 0.5 * (1.0 - math.exp(-saturation_k * net)))
+    return max(0.0, 0.5 - 0.5 * (1.0 - math.exp(-saturation_k * (-net))))
+
+
 def cuisine_score(types: list[str] | None, name: str, preference: str | None) -> float:
     if not preference:
         return 0.5

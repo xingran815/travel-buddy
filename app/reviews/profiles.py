@@ -8,9 +8,12 @@ FACTOR_KEYS = (
     "audience",
     "cuisine",
     "aspects",
+    "history",
 )
 
-PROFILES: dict[str, dict[str, float]] = {
+HISTORY_WEIGHT = 0.06
+
+_BASE_PROFILES: dict[str, dict[str, float]] = {
     "balanced":     {"quality": 0.22, "volume": 0.10, "distance": 0.15, "cost": 0.15, "recency": 0.10, "sentiment": 0.10, "audience": 0.10, "cuisine": 0.05, "aspects": 0.03},
     "family":       {"quality": 0.17, "volume": 0.05, "distance": 0.15, "cost": 0.10, "recency": 0.05, "sentiment": 0.10, "audience": 0.30, "cuisine": 0.05, "aspects": 0.03},
     "adult":        {"quality": 0.17, "volume": 0.05, "distance": 0.10, "cost": 0.10, "recency": 0.10, "sentiment": 0.10, "audience": 0.30, "cuisine": 0.05, "aspects": 0.03},
@@ -18,6 +21,16 @@ PROFILES: dict[str, dict[str, float]] = {
     "budget":       {"quality": 0.17, "volume": 0.10, "distance": 0.10, "cost": 0.35, "recency": 0.05, "sentiment": 0.10, "audience": 0.05, "cuisine": 0.05, "aspects": 0.03},
     "aspect-heavy": {"quality": 0.20, "volume": 0.03, "distance": 0.10, "cost": 0.10, "recency": 0.05, "sentiment": 0.15, "audience": 0.10, "cuisine": 0.02, "aspects": 0.25},
 }
+
+
+def _with_history(base: dict[str, float]) -> dict[str, float]:
+    factor = 1.0 - HISTORY_WEIGHT
+    weights = {k: v * factor for k, v in base.items()}
+    weights["history"] = HISTORY_WEIGHT
+    return weights
+
+
+PROFILES: dict[str, dict[str, float]] = {name: _with_history(w) for name, w in _BASE_PROFILES.items()}
 
 DEFAULT_PROFILE = "balanced"
 

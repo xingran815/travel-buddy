@@ -451,7 +451,7 @@ class TestRecommendBreakdown:
         assert "score" in result[0]
         assert "score_breakdown" in result[0]
         assert set(result[0]["score_breakdown"].keys()) == {
-            "quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects",
+            "quality", "volume", "distance", "cost", "recency", "sentiment", "audience", "cuisine", "aspects", "history",
         }
 
     @patch("app.reviews.checker._fetch_details_batch")
@@ -472,6 +472,33 @@ class TestRecommendBreakdown:
         budget = recommend_places("Istanbul", top_n=2, profile="budget", budget=100, people=2)
         assert foodie[0]["name"] == "Fancy"
         assert budget[0]["name"] == "Cheap"
+
+    @patch("app.reviews.checker._fetch_details_batch")
+    @patch("app.reviews.checker.search_places")
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    def test_user_profile_history_lifts_liked_place(self, mock_geo, mock_search, mock_batch):
+        from app.profile.store import UserProfile
+
+        # Two places with identical attributes — history is the only differentiator.
+        mock_search.return_value = [
+            {"name": "First",  "place_id": "1", "rating": 4.5, "user_ratings_total": 500, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
+            {"name": "Second", "place_id": "2", "rating": 4.5, "user_ratings_total": 500, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
+        ]
+        mock_batch.return_value = {
+            "1": {"name": "First",  "rating": 4.5, "reviews": []},
+            "2": {"name": "Second", "rating": 4.5, "reviews": []},
+        }
+
+        # Baseline (empty profile): stable order preserved from input.
+        baseline = recommend_places("Istanbul", top_n=2, user_profile=UserProfile())
+        assert [r["place_id"] for r in baseline] == ["1", "2"]
+
+        # Liking place 2 reorders it to the top.
+        liked = UserProfile()
+        import time as _time
+        liked.record("2", "liked", rating=5, now=_time.time())
+        biased = recommend_places("Istanbul", top_n=2, user_profile=liked)
+        assert biased[0]["place_id"] == "2"
 
 
 class TestParallelDetails:
