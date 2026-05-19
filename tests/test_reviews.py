@@ -1,9 +1,9 @@
 from unittest.mock import patch, MagicMock
 import pytest
-from app.reviews.checker import (
+from app.reviews.checker import recommend_places
+from app.reviews.search import (
     search_places,
     get_place_details,
-    recommend_places,
     _deduplicate,
     _filter_by_price,
     _budget_to_max_price,
@@ -58,7 +58,7 @@ MOCK_PLACE_DETAIL = {
 
 
 class TestSearchPlaces:
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_search_returns_list_of_places(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -69,7 +69,7 @@ class TestSearchPlaces:
         assert result[0]["name"] == "Nusr-Et"
         assert result[0]["rating"] == 4.5
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_search_with_place_type(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -80,7 +80,7 @@ class TestSearchPlaces:
 
 
 class TestGetPlaceDetails:
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_get_details_returns_reviews(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -93,7 +93,7 @@ class TestGetPlaceDetails:
         assert result["price_level"] == 3
         assert result["website"] == "https://nusr-et.com"
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_get_details_empty_reviews(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -218,7 +218,7 @@ class TestDeduplication:
 
 
 class TestPagination:
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_single_page_no_token(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -228,7 +228,7 @@ class TestPagination:
         assert len(result) == 1
         assert mock_gmaps.places.call_count == 1
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_multiple_pages_with_token(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -240,7 +240,7 @@ class TestPagination:
         assert len(result) == 2
         assert mock_gmaps.places.call_count == 2
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_stops_early_if_no_token(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -341,9 +341,9 @@ class TestBudgetToMaxPrice:
 
 
 class TestGeocodeRegion:
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_returns_default_d_half_when_no_viewport(self, mock_get_client):
-        from app.reviews.checker import _geocode_region, DEFAULT_D_HALF_KM
+        from app.reviews.search import _geocode_region, DEFAULT_D_HALF_KM
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
         mock_gmaps.geocode.return_value = [{"geometry": {"location": {"lat": 41.0, "lng": 29.0}}}]
@@ -351,9 +351,9 @@ class TestGeocodeRegion:
         assert center == (41.0, 29.0)
         assert d_half == DEFAULT_D_HALF_KM
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_returns_d_half_from_viewport(self, mock_get_client):
-        from app.reviews.checker import _geocode_region
+        from app.reviews.search import _geocode_region
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
         # ~12 km between corners along a diagonal (rough)
@@ -369,9 +369,9 @@ class TestGeocodeRegion:
         _, d_half = _geocode_region("CityA")
         assert d_half > 0.5
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_big_viewport_yields_larger_d_half(self, mock_get_client):
-        from app.reviews.checker import _geocode_region
+        from app.reviews.search import _geocode_region
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
 
@@ -398,17 +398,17 @@ class TestGeocodeRegion:
         _, d_big = _geocode_region("BigCity")
         assert d_big > d_small * 5
 
-    @patch("app.reviews.checker.get_client", side_effect=Exception("no api key"))
+    @patch("app.reviews.search.get_client", side_effect=Exception("no api key"))
     def test_failure_returns_default(self, mock_get_client):
-        from app.reviews.checker import _geocode_region, DEFAULT_D_HALF_KM
+        from app.reviews.search import _geocode_region, DEFAULT_D_HALF_KM
         center, d_half = _geocode_region("Nowhere")
         assert center is None
         assert d_half == DEFAULT_D_HALF_KM
 
     @patch("sys.stdin.isatty", return_value=False)
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_non_interactive_falls_back_to_first_candidate(self, mock_get_client, mock_tty):
-        from app.reviews.checker import _geocode_region
+        from app.reviews.search import _geocode_region
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
         mock_gmaps.geocode.return_value = [
@@ -421,10 +421,10 @@ class TestGeocodeRegion:
         assert center == (39.78, -89.65)  # falls back to first
 
     @patch("sys.stdin.isatty", return_value=True)
-    @patch("app.reviews.checker.click.prompt", return_value=2)
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.click.prompt", return_value=2)
+    @patch("app.reviews.search.get_client")
     def test_interactive_user_picks_second_candidate(self, mock_get_client, mock_prompt, mock_tty):
-        from app.reviews.checker import _geocode_region
+        from app.reviews.search import _geocode_region
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
         mock_gmaps.geocode.return_value = [
@@ -438,7 +438,7 @@ class TestGeocodeRegion:
 
 
 class TestClosedFiltering:
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_closed_permanently_excluded(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -453,7 +453,7 @@ class TestClosedFiltering:
         assert "Open" in names
         assert "Closed" not in names
 
-    @patch("app.reviews.checker.get_client")
+    @patch("app.reviews.search.get_client")
     def test_extracts_lat_lng_from_geometry(self, mock_get_client):
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
@@ -533,7 +533,7 @@ class TestRecommendBreakdown:
 
 
 class TestParallelDetails:
-    @patch("app.reviews.checker.get_place_details")
+    @patch("app.reviews.search.get_place_details")
     def test_fetch_details_batch(self, mock_details):
         mock_details.side_effect = [
             {"name": "A", "rating": 4.5, "reviews": []},
@@ -544,7 +544,7 @@ class TestParallelDetails:
         assert "1" in result
         assert "2" in result
 
-    @patch("app.reviews.checker.get_place_details")
+    @patch("app.reviews.search.get_place_details")
     def test_fetch_details_batch_empty(self, mock_details):
         result = _fetch_details_batch([])
         assert result == {}
