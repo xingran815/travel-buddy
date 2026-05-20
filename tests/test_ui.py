@@ -11,6 +11,7 @@ from app.ui.display import (
     show_success,
 )
 from app.ui.menu import run_summarize, run_recommend, run_plan, run_settings, _is_quit, _ask_place_types
+from app.ui.prompts import _ask_categories
 
 
 class TestDisplay:
@@ -210,6 +211,61 @@ class TestMenuPlan:
             ]
             run_plan("en")
         mock_plan.assert_not_called()
+
+
+class TestAskCategories:
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_returns_none_on_cancel(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = None
+        assert _ask_categories("en") is None
+        assert mock_checkbox.call_count == 1
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_re_prompts_on_empty(self, mock_checkbox):
+        mock_checkbox.return_value.ask.side_effect = [[], ["Food & drink"]]
+        result = _ask_categories("en")
+        assert result == ["food"]
+        assert mock_checkbox.call_count == 2
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_returns_none_after_two_empty_submits(self, mock_checkbox):
+        mock_checkbox.return_value.ask.side_effect = [[], []]
+        assert _ask_categories("en") is None
+        assert mock_checkbox.call_count == 2
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_returns_selection_on_first_attempt(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = ["Food & drink", "Sights & landmarks"]
+        result = _ask_categories("en")
+        assert result == ["food", "sights"]
+        assert mock_checkbox.call_count == 1
+
+
+class TestAskPlaceTypesMulti:
+    @patch("app.ui.prompts.questionary.checkbox")
+    @patch("app.ui.prompts.questionary.select")
+    def test_re_prompts_on_empty(self, mock_select, mock_checkbox):
+        mock_select.return_value.ask.return_value = "Multiple types"
+        mock_checkbox.return_value.ask.side_effect = [[], ["Restaurant"]]
+        result = _ask_place_types("en")
+        assert result == ["restaurant"]
+        assert mock_checkbox.call_count == 2
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    @patch("app.ui.prompts.questionary.select")
+    def test_returns_none_after_two_empty_submits(self, mock_select, mock_checkbox):
+        mock_select.return_value.ask.return_value = "Multiple types"
+        mock_checkbox.return_value.ask.side_effect = [[], []]
+        assert _ask_place_types("en") is None
+        assert mock_checkbox.call_count == 2
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    @patch("app.ui.prompts.questionary.select")
+    def test_returns_none_on_cancel(self, mock_select, mock_checkbox):
+        mock_select.return_value.ask.return_value = "Multiple types"
+        mock_checkbox.return_value.ask.return_value = None
+        assert _ask_place_types("en") is None
+        assert mock_checkbox.call_count == 1
 
 
 class TestMenuSettings:

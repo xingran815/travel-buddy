@@ -257,6 +257,10 @@ STRINGS = {
         "en": "Time available (hours, enter to skip):",
         "tr": "Ayrılan süre (saat, atlamak için Enter):",
     },
+    "empty_selection_hint": {
+        "en": "No items selected. Use SPACE to toggle, ENTER to confirm.",
+        "tr": "Hiçbir seçim yapılmadı. Seçmek için SPACE, onaylamak için ENTER.",
+    },
 }
 
 

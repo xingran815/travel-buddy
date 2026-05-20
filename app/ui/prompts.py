@@ -199,15 +199,21 @@ def _prompt_continue(lang: str = "tr"):
 
 
 def _ask_categories(lang: str = "tr") -> list[str] | None:
+    from app.ui.display import show_info
     labels = [(t(f"category_{c}", lang), c) for c in CATEGORY_ORDER]
-    selected = questionary.checkbox(
-        t("select_categories", lang),
-        choices=[label for label, _ in labels],
-    ).ask()
-    if not selected:
-        return None
+    choices = [label for label, _ in labels]
     label_to_id = dict(labels)
-    return [label_to_id[s] for s in selected]
+    for _ in range(2):
+        selected = questionary.checkbox(
+            t("select_categories", lang),
+            choices=choices,
+        ).ask()
+        if selected is None:
+            return None
+        if selected:
+            return [label_to_id[s] for s in selected]
+        show_info(t("empty_selection_hint", lang))
+    return None
 
 
 def _ask_place_types(lang: str = "tr") -> list[str] | None:
@@ -235,10 +241,16 @@ def _ask_place_types(lang: str = "tr") -> list[str] | None:
         if selected is None:
             return None
         return [value_map[selected]]
-    selected = questionary.checkbox(
-        t("select_place_types", lang),
-        choices=display_names,
-    ).ask()
-    if not selected:
-        return None
-    return [value_map[s] for s in selected]
+
+    from app.ui.display import show_info
+    for _ in range(2):
+        selected = questionary.checkbox(
+            t("select_place_types", lang),
+            choices=display_names,
+        ).ask()
+        if selected is None:
+            return None
+        if selected:
+            return [value_map[s] for s in selected]
+        show_info(t("empty_selection_hint", lang))
+    return None
