@@ -1,10 +1,18 @@
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+import click
+
 from app.reviews import factors
 from app.reviews.categories import get_category
+from app.reviews.pipeline import (
+    score_all as _score_all,
+    fill_missing_prices_and_rescore as _fill_missing_prices_and_rescore,
+)
 from app.reviews.profiles import get_profile, DEFAULT_PROFILE
-from app.reviews.scoring import composite_score
 from app.reviews.search import (
     search_places, _deduplicate, _geocode_region, _budget_to_max_price,
-    _fetch_details_batch, DEFAULT_D_HALF_KM,
+    _fetch_details_batch, get_client, DEFAULT_D_HALF_KM,
 )
 
 
@@ -53,18 +61,17 @@ def recommend_places(
     if budget is not None and max_price is None:
         max_price = _budget_to_max_price(budget)
 
-    all_places = []
-    for pt in types:
-        places = search_places(
-            region,
-            place_type=pt,
-            max_pages=max_pages,
-            min_price=min_price,
-            max_price=max_price,
-            location=location,
-            radius=radius,
-        )
-        all_places.extend(places)
+    client = get_client()
+    hits_before, misses_before = client.hits, client.misses
+    timings: dict[str, float] = {}
+    t_total = time.perf_counter()
+
+    t0 = time.perf_counter()
+    all_places = _search_all_types(
+        region, types, max_pages=max_pages, min_price=min_price,
+        max_price=max_price, location=location, radius=radius,
+    )
+    timings["search"] = time.perf_counter() - t0
 
     all_places = _deduplicate(all_places)
 
@@ -74,11 +81,13 @@ def recommend_places(
             if factors.infer_indoor_outdoor(p.get("types")) in (indoor_outdoor, None)
         ]
 
+    t0 = time.perf_counter()
     if location is not None:
         center = location
         d_half = DEFAULT_D_HALF_KM
     else:
         center, d_half = _geocode_region(region)
+    timings["geocode"] = time.perf_counter() - t0
     weights = get_profile(profile, has_cuisine=bool(cuisine), has_audience=bool(audience))
 
     aspects_cache: dict[str, dict[str, float]] = {}
@@ -89,20 +98,30 @@ def recommend_places(
         except Exception:
             aspects_cache = {}
 
+    t0 = time.perf_counter()
     scored = _score_all(
         all_places, weights=weights, center=center, cuisine=cuisine, audience=audience,
         budget=budget, people=people, d_half=d_half, aspects=aspects,
         aspects_cache=aspects_cache, user_profile=user_profile,
     )
+    timings["score"] = time.perf_counter() - t0
 
     k_in = max(top_n, top_n + 5) if llm_rerank else top_n
     top = scored[:k_in]
 
     if not include_details:
+        _emit_timing(
+            timings, total=time.perf_counter() - t_total,
+            n_types=len(types), n_details=0,
+            cache_hits=client.hits - hits_before,
+            cache_misses=client.misses - misses_before,
+        )
         return top[:top_n]
 
     place_ids = [t["place_id"] for t in top]
+    t0 = time.perf_counter()
     details_map = _fetch_details_batch(place_ids)
+    timings["details"] = time.perf_counter() - t0
 
     results = []
     for t in top:
@@ -116,6 +135,7 @@ def recommend_places(
         merged["d_half_km"] = t["d_half_km"]
         results.append(merged)
 
+    t0 = time.perf_counter()
     if estimate_missing_price and budget is not None:
         _fill_missing_prices_and_rescore(
             results, weights=weights, center=center, cuisine=cuisine,
@@ -129,7 +149,6 @@ def recommend_places(
             extract_aspects(p)
 
     if llm_rerank and len(results) > 1:
-        from app.llm.recommender import rerank_top_k
         prefs = {
             "cuisine": cuisine,
             "audience": audience,
@@ -140,103 +159,88 @@ def recommend_places(
             "vibe": vibe,
             **{k: v for k, v in parsed_prefs.items() if k != "raw"},
         }
-        results = rerank_top_k(results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang)
+        if llm_summarize:
+            from app.llm.recommender import rerank_with_pros_cons
+            results = rerank_with_pros_cons(
+                results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang,
+            )
+        else:
+            from app.llm.recommender import rerank_top_k
+            results = rerank_top_k(
+                results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang,
+            )
     else:
         results = results[:top_n]
+        if llm_summarize and results:
+            from app.llm.recommender import summarize_pros_cons_batch
+            summaries = summarize_pros_cons_batch(results, lang=lang)
+            for p in results:
+                s = summaries.get(p.get("place_id", ""))
+                if s:
+                    p["pros"] = s.get("pros", [])
+                    p["cons"] = s.get("cons", [])
+    timings["llm"] = time.perf_counter() - t0
 
-    if llm_summarize and results:
-        from app.llm.recommender import summarize_pros_cons_batch
-        summaries = summarize_pros_cons_batch(results, lang=lang)
-        for p in results:
-            s = summaries.get(p.get("place_id", ""))
-            if s:
-                p["pros"] = s.get("pros", [])
-                p["cons"] = s.get("cons", [])
-
+    _emit_timing(
+        timings, total=time.perf_counter() - t_total,
+        n_types=len(types), n_details=len(place_ids),
+        cache_hits=client.hits - hits_before,
+        cache_misses=client.misses - misses_before,
+    )
     return results
 
 
-def _score_all(
-    all_places: list[dict],
+def _search_all_types(
+    region: str,
+    types: list[str],
     *,
-    weights: dict[str, float],
-    center,
-    cuisine,
-    audience,
-    budget,
-    people: int,
-    d_half: float,
-    aspects,
-    aspects_cache: dict[str, dict[str, float]],
-    user_profile,
+    max_pages: int,
+    min_price: int | None,
+    max_price: int | None,
+    location: tuple[float, float] | None,
+    radius: int | None,
 ) -> list[dict]:
-    scored = []
-    for p in all_places:
-        result = composite_score(
-            p, weights=weights, center=center, cuisine=cuisine, audience=audience,
-            budget=budget, people=people, d_half=d_half, aspects=aspects,
-            place_aspects=aspects_cache.get(p.get("place_id", "")),
-            user_profile=user_profile,
+    if len(types) == 1:
+        return search_places(
+            region, place_type=types[0], max_pages=max_pages,
+            min_price=min_price, max_price=max_price,
+            location=location, radius=radius,
         )
-        distance_km = None
-        if center and p.get("lat") is not None and p.get("lng") is not None:
-            distance_km = round(factors.haversine(center, (p["lat"], p["lng"])), 2)
-        scored.append({
-            **p,
-            "score": round(result["total"] * 5.0, 2),
-            "score_breakdown": {k: round(v * 5.0, 3) for k, v in result["breakdown"].items()},
-            "score_raw": {k: round(v, 3) for k, v in result["raw"].items()},
-            "audience_tag": result["audience_tag"],
-            "distance_km": distance_km,
-            "d_half_km": round(d_half, 2),
-        })
-    scored.sort(key=lambda x: x["score"], reverse=True)
-    return scored
+    workers = min(len(types), 6)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [
+            ex.submit(
+                search_places, region, place_type=pt, max_pages=max_pages,
+                min_price=min_price, max_price=max_price,
+                location=location, radius=radius,
+            )
+            for pt in types
+        ]
+        out: list[dict] = []
+        for f in futures:
+            out.extend(f.result())
+    return out
 
 
-def _fill_missing_prices_and_rescore(
-    results: list[dict],
+def _emit_timing(
+    timings: dict[str, float],
     *,
-    weights: dict[str, float],
-    center,
-    cuisine,
-    audience,
-    budget,
-    people: int,
-    d_half: float,
-    aspects,
-    aspects_cache: dict[str, dict[str, float]],
-    user_profile,
+    total: float,
+    n_types: int,
+    n_details: int,
+    cache_hits: int,
+    cache_misses: int,
 ) -> None:
-    needing = [p for p in results if p.get("price_level") is None and p.get("reviews")]
-    if not needing:
-        return
-    from app.llm.recommender import estimate_price_levels_batch
-    estimates = estimate_price_levels_batch(needing)
-    updated_ids = set()
-    for p in results:
-        pid = p.get("place_id", "")
-        est = estimates.get(pid)
-        if est is not None and p.get("price_level") is None:
-            p["price_level"] = est
-            p["price_level_source"] = "llm"
-            updated_ids.add(pid)
-    if not updated_ids:
-        return
-    for p in results:
-        if p.get("place_id") not in updated_ids:
-            continue
-        rescored = composite_score(
-            p, weights=weights, center=center, cuisine=cuisine, audience=audience,
-            budget=budget, people=people, d_half=d_half, aspects=aspects,
-            place_aspects=aspects_cache.get(p.get("place_id", "")),
-            user_profile=user_profile,
-        )
-        p["score"] = round(rescored["total"] * 5.0, 2)
-        p["score_breakdown"] = {k: round(v * 5.0, 3) for k, v in rescored["breakdown"].items()}
-        p["score_raw"] = {k: round(v, 3) for k, v in rescored["raw"].items()}
-        p["audience_tag"] = rescored["audience_tag"]
-    results.sort(key=lambda x: x["score"], reverse=True)
+    parts = [
+        f"geocode {timings.get('geocode', 0):.1f}s",
+        f"search {timings.get('search', 0):.1f}s ({n_types}x)",
+        f"details {timings.get('details', 0):.1f}s ({n_details})",
+        f"score {timings.get('score', 0):.2f}s",
+        f"llm {timings.get('llm', 0):.1f}s",
+        f"total {total:.1f}s",
+        f"cache: {cache_hits} hit / {cache_misses} miss",
+    ]
+    click.echo("[timing] " + " | ".join(parts), err=True)
 
 
 def recommend_by_categories(

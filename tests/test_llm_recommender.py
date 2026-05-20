@@ -88,6 +88,89 @@ class TestRerank:
         assert out == places[:2]
 
 
+class TestRerankWithProsCons:
+    @patch("app.llm.recommender.get_provider")
+    def test_merged_returns_order_and_pros_cons(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.return_value = _mock_result({
+            "order": [
+                {
+                    "place_id": "B", "rationale": "Better view",
+                    "pros": ["Stunning view", "Cozy"],
+                    "cons": ["Pricey", "Slow service"],
+                },
+                {
+                    "place_id": "A", "rationale": "Solid backup",
+                    "pros": ["Reliable", "Friendly"],
+                    "cons": ["Plain decor", "Limited menu"],
+                },
+            ]
+        })
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {},
+             "reviews": [{"rating": 5, "text": "Loved it"}]},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {},
+             "reviews": [{"rating": 4, "text": "Nice"}]},
+        ]
+        out = recommender.rerank_with_pros_cons(
+            places, query="x", profile="balanced", prefs={}, k_out=2, lang="en",
+        )
+        assert [p["place_id"] for p in out] == ["B", "A"]
+        assert out[0]["llm_rationale"] == "Better view"
+        assert out[0]["pros"] == ["Stunning view", "Cozy"]
+        assert out[0]["cons"] == ["Pricey", "Slow service"]
+        assert out[1]["pros"] == ["Reliable", "Friendly"]
+        assert provider.chat_json.call_count == 1
+
+    @patch("app.llm.recommender.get_provider")
+    def test_merged_prewarms_pros_cons_cache(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.return_value = _mock_result({
+            "order": [
+                {"place_id": "A", "rationale": "Top",
+                 "pros": ["Good food"], "cons": ["Loud"]},
+            ]
+        })
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {},
+             "reviews": [{"rating": 5, "text": "Great steak"}]},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {},
+             "reviews": [{"rating": 4, "text": "Decent"}]},
+        ]
+        recommender.rerank_with_pros_cons(
+            places, query="x", profile="balanced", prefs={}, k_out=1, lang="en",
+        )
+        place_a = places[0]
+        # A separate summarize call for the same place + lang should hit the warmed cache.
+        out = recommender.summarize_pros_cons(place_a, lang="en")
+        assert out == {"pros": ["Good food"], "cons": ["Loud"]}
+        assert provider.chat_json.call_count == 1  # cache hit, no second LLM call
+
+    @patch("app.llm.recommender.rerank_top_k")
+    @patch("app.llm.recommender.get_provider")
+    def test_merged_falls_back_on_failure(self, mock_get_provider, mock_rerank, temp_cache):
+        mock_get_provider.side_effect = Exception("network down")
+        mock_rerank.return_value = [{"place_id": "A"}, {"place_id": "B"}]
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {}, "reviews": []},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {}, "reviews": []},
+        ]
+        out = recommender.rerank_with_pros_cons(
+            places, query="x", profile="balanced", prefs={}, k_out=2, lang="en",
+        )
+        assert mock_rerank.called
+        assert [p["place_id"] for p in out] == ["A", "B"]
+
+    def test_merged_short_list_passes_through(self):
+        places = [{"place_id": "A", "name": "X", "score_breakdown": {}, "reviews": []}]
+        out = recommender.rerank_with_pros_cons(
+            places, query="any", profile="balanced", prefs={}, k_out=5,
+        )
+        assert out == places
+
+
 class TestProsCons:
     @patch("app.llm.recommender.get_provider")
     def test_returns_pros_cons(self, mock_get_provider, temp_cache):

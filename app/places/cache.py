@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ class PlacesCache:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False, isolation_level=None)
+        self._lock = threading.Lock()
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS places_cache ("
             "key TEXT PRIMARY KEY, "
@@ -38,10 +40,11 @@ class PlacesCache:
 
     def get(self, key: str, now: float | None = None) -> Any | None:
         ts = now if now is not None else time.time()
-        row = self._conn.execute(
-            "SELECT response, fetched_at, ttl FROM places_cache WHERE key = ?",
-            (key,),
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT response, fetched_at, ttl FROM places_cache WHERE key = ?",
+                (key,),
+            ).fetchone()
         if row is None:
             return None
         response, fetched_at, ttl = row
@@ -51,16 +54,19 @@ class PlacesCache:
 
     def set(self, key: str, response: Any, ttl: float, now: float | None = None) -> None:
         ts = now if now is not None else time.time()
-        self._conn.execute(
-            "INSERT OR REPLACE INTO places_cache (key, response, fetched_at, ttl) VALUES (?, ?, ?, ?)",
-            (key, json.dumps(response, ensure_ascii=False), ts, ttl),
-        )
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO places_cache (key, response, fetched_at, ttl) VALUES (?, ?, ?, ?)",
+                (key, json.dumps(response, ensure_ascii=False), ts, ttl),
+            )
 
     def clear(self) -> None:
-        self._conn.execute("DELETE FROM places_cache")
+        with self._lock:
+            self._conn.execute("DELETE FROM places_cache")
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
 
 def _cache_enabled_default() -> bool:

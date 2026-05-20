@@ -171,6 +171,89 @@ def _apply_rerank_order(order: list[dict], places: list[dict], k_out: int) -> li
     return reranked
 
 
+_RERANK_PROS_CONS_SYSTEM = (
+    "You re-rank place recommendations AND summarize each chosen place. Given a JSON payload "
+    "with a user query, profile, preferences, and candidate places, choose the best k_out in "
+    "preferred order. Each place carries score_breakdown, up to 3 top-rated review excerpts in "
+    "good_reviews, and up to 3 lowest-rated review excerpts in bad_reviews. Read BOTH sides: "
+    "a high overall rating with damaging bad_reviews (e.g. 'overpriced', 'dirty', 'rude staff', "
+    "'closed early') that match the user's stated priorities should drop in your ranking. "
+    "A merely-OK rating whose bad_reviews are minor or off-topic should not. "
+    "For each chosen place, also produce 2 short pros and 2 short cons (≤ 12 words each), "
+    "grounded in good_reviews and bad_reviews. The rationale must mention the deciding pro or "
+    "con in 1 short sentence. Output JSON: "
+    "{\"order\": [{\"place_id\": str, \"rationale\": str, "
+    "\"pros\": [str, str], \"cons\": [str, str]}, ...]}. "
+    "Reply in the user's language ({lang})."
+)
+
+
+def rerank_with_pros_cons(
+    places: list[dict],
+    query: str | None,
+    profile: str,
+    prefs: dict | None = None,
+    k_out: int = 5,
+    lang: str = "en",
+    budget=None,
+) -> list[dict]:
+    """Rerank candidates and emit pros/cons in a single LLM call."""
+    if len(places) <= 1:
+        return places[:k_out]
+    payload = {
+        "query": query or "",
+        "profile": profile,
+        "prefs": prefs or {},
+        "places": [_place_summary(p) for p in places],
+        "k_out": k_out,
+    }
+    system = _RERANK_PROS_CONS_SYSTEM.replace("{lang}", lang)
+    try:
+        out = _chat_json(
+            [
+                {"role": "system", "content": system},
+                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+            ],
+            temperature=0.2,
+            budget=budget,
+        )
+    except Exception:
+        return rerank_top_k(places, query, profile, prefs, k_out, lang, budget)
+    order = out.get("order") or []
+    reranked = _apply_rerank_order(order, places, k_out)
+    _attach_and_cache_pros_cons(reranked, order, places, lang)
+    return reranked
+
+
+def _attach_and_cache_pros_cons(
+    reranked: list[dict], order: list[dict], original_places: list[dict], lang: str,
+) -> None:
+    entries_by_id = {e.get("place_id"): e for e in order if isinstance(e, dict)}
+    reviews_by_id = {p.get("place_id"): (p.get("reviews") or []) for p in original_places}
+    cache = _load_json_cache(PROS_CONS_CACHE)
+    cache_dirty = False
+    for place in reranked:
+        pid = place.get("place_id")
+        entry = entries_by_id.get(pid)
+        if not entry:
+            continue
+        pros = [str(x) for x in (entry.get("pros") or [])[:3]]
+        cons = [str(x) for x in (entry.get("cons") or [])[:3]]
+        place["pros"] = pros
+        place["cons"] = cons
+        reviews = reviews_by_id.get(pid) or []
+        if not reviews:
+            continue
+        key = f"{pid}:{lang}:{_reviews_signature(reviews)}"
+        cache[key] = {"pros": pros, "cons": cons}
+        cache_dirty = True
+    if cache_dirty:
+        try:
+            _save_json_cache(PROS_CONS_CACHE, cache)
+        except OSError:
+            pass
+
+
 def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
     reviews = place.get("reviews") or []
     if not reviews:

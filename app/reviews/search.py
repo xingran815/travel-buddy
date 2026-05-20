@@ -1,4 +1,5 @@
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -9,8 +10,16 @@ from app.places.cache import CachedGmaps
 from app.reviews import factors
 
 
-def get_client():
-    return CachedGmaps(googlemaps.Client(key=GOOGLE_MAPS_API_KEY))
+_CLIENT_LOCK = threading.Lock()
+_CLIENT_HOLDER: list[CachedGmaps] = []
+
+
+def get_client() -> CachedGmaps:
+    if not _CLIENT_HOLDER:
+        with _CLIENT_LOCK:
+            if not _CLIENT_HOLDER:
+                _CLIENT_HOLDER.append(CachedGmaps(googlemaps.Client(key=GOOGLE_MAPS_API_KEY)))
+    return _CLIENT_HOLDER[0]
 
 
 def _deduplicate(places: list[dict]) -> list[dict]:
@@ -227,9 +236,12 @@ def get_place_details(place_id: str) -> dict:
     }
 
 
-def _fetch_details_batch(place_ids: list[str], max_workers: int = 5) -> dict[str, dict]:
+def _fetch_details_batch(place_ids: list[str], max_workers: int | None = None) -> dict[str, dict]:
+    if not place_ids:
+        return {}
+    workers = max_workers if max_workers is not None else min(len(place_ids), 10)
     results = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {executor.submit(get_place_details, pid): pid for pid in place_ids}
         for future in as_completed(futures):
             pid = futures[future]
