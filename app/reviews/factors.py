@@ -6,6 +6,15 @@ FAMILY_TYPES = {"amusement_park", "aquarium", "zoo", "park", "museum", "tourist_
 ADULT_KEYS = {"bar", "pub", "lounge", "club", "cocktail"}
 FAMILY_KEYS = {"family", "kids", "children", "playground"}
 
+INDOOR_TYPES = {
+    "museum", "art_gallery", "aquarium", "shopping_mall",
+    "movie_theater", "bowling_alley", "spa", "gym", "library", "casino",
+}
+OUTDOOR_TYPES = {
+    "park", "zoo", "amusement_park", "natural_feature",
+    "campground", "stadium",
+}
+
 CUISINE_KEYWORDS: dict[str, set[str]] = {
     "turkish": {"turkish", "kebap", "kebab", "köfte", "lahmacun", "pide", "meze", "ocakbaşı"},
     "italian": {"italian", "pizza", "pasta", "trattoria", "osteria", "ristorante"},
@@ -129,6 +138,15 @@ def infer_audience(types: list[str] | None, name: str = "") -> str:
     if family_hit:
         return "family"
     return "neutral"
+
+
+def infer_indoor_outdoor(types: list[str] | None) -> str | None:
+    types_set = {str(t).lower() for t in (types or [])}
+    if types_set & INDOOR_TYPES:
+        return "indoor"
+    if types_set & OUTDOOR_TYPES:
+        return "outdoor"
+    return None
 
 
 def audience_score(place_audience: str, preference: str | None) -> float:

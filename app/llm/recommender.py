@@ -8,6 +8,7 @@ from app.llm.factory import get_provider
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "cache"
 ASPECTS_CACHE = CACHE_DIR / "aspects.json"
 PROS_CONS_CACHE = CACHE_DIR / "pros_cons.json"
+PRICE_LEVEL_CACHE = CACHE_DIR / "price_level.json"
 
 ASPECT_KEYS = (
     "atmosphere", "service", "value", "cleanliness",
@@ -73,8 +74,27 @@ def parse_query(free_form: str, lang: str = "en", budget=None) -> dict:
     return out
 
 
+def _split_reviews_by_rating(
+    reviews: list[dict], n_top: int = 3, n_bot: int = 3,
+) -> tuple[list[dict], list[dict]]:
+    with_text = [r for r in (reviews or []) if (r.get("text") or "").strip()]
+    n = len(with_text)
+    if n == 0:
+        return [], []
+    by_rating_desc = sorted(with_text, key=lambda r: r.get("rating") or 0, reverse=True)
+    top_cap = n_top if n <= 1 else min(n_top, max(1, n - 1))
+    top = by_rating_desc[:top_cap]
+    top_ids = {id(r) for r in top}
+    remaining = [r for r in with_text if id(r) not in top_ids]
+    return top, sorted(remaining, key=lambda r: r.get("rating") or 0)[:n_bot]
+
+
+def _excerpt(r: dict) -> dict:
+    return {"rating": r.get("rating"), "text": (r.get("text") or "")[:240]}
+
+
 def _place_summary(place: dict) -> dict:
-    reviews = (place.get("reviews") or [])[:3]
+    good, bad = _split_reviews_by_rating(place.get("reviews") or [])
     return {
         "place_id": place.get("place_id", ""),
         "name": place.get("name", ""),
@@ -85,7 +105,8 @@ def _place_summary(place: dict) -> dict:
         "distance_km": place.get("distance_km"),
         "audience_tag": place.get("audience_tag"),
         "score_breakdown": place.get("score_breakdown"),
-        "review_excerpts": [(r.get("text") or "")[:200] for r in reviews],
+        "good_reviews": [_excerpt(r) for r in good],
+        "bad_reviews": [_excerpt(r) for r in bad],
     }
 
 
@@ -109,10 +130,15 @@ def rerank_top_k(
     }
     system = (
         "You re-rank place recommendations. Given a JSON payload with a user query, profile, "
-        "preferences, and a list of candidate places (each with score_breakdown and short review "
-        "excerpts), choose the best k_out in preferred order. Output JSON: "
-        "{\"order\": [{\"place_id\": str, \"rationale\": str}, ...]}. Rationale must be 1 short sentence "
-        f"in the user's language ({lang})."
+        "preferences, and candidate places, choose the best k_out in preferred order. Each place "
+        "carries score_breakdown, up to 3 top-rated review excerpts in good_reviews, and up to 3 "
+        "lowest-rated review excerpts in bad_reviews. Read BOTH sides: a high overall rating with "
+        "damaging bad_reviews (e.g. 'overpriced', 'dirty', 'rude staff', 'closed early') that "
+        "match the user's stated priorities should drop in your ranking. A merely-OK rating whose "
+        "bad_reviews are minor or off-topic should not. The rationale must mention the deciding "
+        "pro or con in 1 short sentence. Output JSON: "
+        "{\"order\": [{\"place_id\": str, \"rationale\": str}, ...]}. "
+        f"Reply in the user's language ({lang})."
     )
     try:
         out = _chat_json(
@@ -123,24 +149,26 @@ def rerank_top_k(
             temperature=0.2,
             budget=budget,
         )
-        order = out.get("order") or []
-        by_id = {p.get("place_id"): p for p in places}
-        reranked = []
-        for entry in order[:k_out]:
-            pid = entry.get("place_id")
-            if pid in by_id:
-                p = dict(by_id[pid])
-                p["llm_rationale"] = entry.get("rationale", "")
-                p["llm_rank"] = len(reranked) + 1
-                reranked.append(p)
-        # Append any leftover places from original order that weren't selected
-        seen = {p.get("place_id") for p in reranked}
-        for p in places:
-            if p.get("place_id") not in seen and len(reranked) < k_out:
-                reranked.append(p)
-        return reranked
     except Exception:
         return places[:k_out]
+    return _apply_rerank_order(out.get("order") or [], places, k_out)
+
+
+def _apply_rerank_order(order: list[dict], places: list[dict], k_out: int) -> list[dict]:
+    by_id = {p.get("place_id"): p for p in places}
+    reranked = []
+    for entry in order[:k_out]:
+        pid = entry.get("place_id")
+        if pid in by_id:
+            p = dict(by_id[pid])
+            p["llm_rationale"] = entry.get("rationale", "")
+            p["llm_rank"] = len(reranked) + 1
+            reranked.append(p)
+    seen = {p.get("place_id") for p in reranked}
+    for p in places:
+        if p.get("place_id") not in seen and len(reranked) < k_out:
+            reranked.append(p)
+    return reranked
 
 
 def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
@@ -175,6 +203,71 @@ def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
     except OSError:
         pass
     return result
+
+
+def estimate_price_level(place: dict, budget=None) -> int | None:
+    """Estimate Google price_level (1-4) from review text when Google omits it.
+
+    Returns None when reviews give no signal or the LLM call fails.
+    """
+    reviews = place.get("reviews") or []
+    if not reviews:
+        return None
+    _ensure_cache_dir()
+    cache = _load_json_cache(PRICE_LEVEL_CACHE)
+    pid = place.get("place_id", "")
+    sig = _reviews_signature(reviews)
+    key = f"{pid}:{sig}"
+    if key in cache:
+        cached = cache[key]
+        return cached.get("level") if isinstance(cached, dict) else None
+    excerpts = "\n".join(
+        f"- ({r.get('rating', '')}/5) {(r.get('text') or '')[:240]}" for r in reviews[:5]
+    )
+    system = (
+        "Estimate Google Places price_level for a place using its user reviews. "
+        "Scale: 1 = cheap, 2 = moderate, 3 = expensive, 4 = very expensive. "
+        "Output JSON: {\"level\": int (1-4) or null, \"confidence\": \"low\"|\"med\"|\"high\"}. "
+        "Return null level when reviews don't mention price or value."
+    )
+    user = f"Place: {place.get('name', '')}\nReviews:\n{excerpts}"
+    try:
+        out = _chat_json(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.1,
+            budget=budget,
+        )
+    except Exception:
+        return None
+    level = out.get("level")
+    if isinstance(level, int) and 1 <= level <= 4:
+        result = {"level": level, "confidence": out.get("confidence", "low")}
+    else:
+        result = {"level": None, "confidence": "low"}
+    cache[key] = result
+    try:
+        _save_json_cache(PRICE_LEVEL_CACHE, cache)
+    except OSError:
+        pass
+    return result["level"]
+
+
+def estimate_price_levels_batch(
+    places: list[dict],
+    budget=None,
+    max_workers: int = 5,
+) -> dict[str, int | None]:
+    out: dict[str, int | None] = {}
+    if not places:
+        return out
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {
+            ex.submit(estimate_price_level, p, budget): p.get("place_id", "")
+            for p in places
+        }
+        for fut in as_completed(futures):
+            out[futures[fut]] = fut.result()
+    return out
 
 
 def summarize_pros_cons_batch(

@@ -95,14 +95,6 @@ STRINGS = {
         "en": "Balanced",
         "tr": "Dengeli",
     },
-    "profile_family": {
-        "en": "Family",
-        "tr": "Aile",
-    },
-    "profile_adult": {
-        "en": "Adult",
-        "tr": "Yetişkin",
-    },
     "profile_foodie": {
         "en": "Foodie",
         "tr": "Gurme",
@@ -260,6 +252,26 @@ STRINGS = {
     "empty_selection_hint": {
         "en": "No items selected. Use SPACE to toggle, ENTER to confirm.",
         "tr": "Hiçbir seçim yapılmadı. Seçmek için SPACE, onaylamak için ENTER.",
+    },
+    "prompt_budget_tier": {
+        "en": "Budget tier:",
+        "tr": "Bütçe seviyesi:",
+    },
+    "budget_low": {
+        "en": "Low ($)",
+        "tr": "Düşük ($)",
+    },
+    "budget_mid": {
+        "en": "Mid ($$)",
+        "tr": "Orta ($$)",
+    },
+    "budget_high": {
+        "en": "High ($$$)",
+        "tr": "Yüksek ($$$)",
+    },
+    "price_estimated": {
+        "en": "est.",
+        "tr": "tahmini",
     },
 }
 

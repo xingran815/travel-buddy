@@ -27,17 +27,30 @@ class TestProfiles:
 
     def test_get_profile_redistributes_missing_cuisine(self):
         baseline = PROFILES["balanced"]
-        w = get_profile("balanced", has_cuisine=False, has_audience=True)
+        w = get_profile("balanced", has_cuisine=False, has_audience=False)
         assert w["cuisine"] == 0.0
-        assert abs(w["quality"] - (baseline["quality"] + baseline["cuisine"])) < 1e-9
+        assert w["audience"] == 0.0
+        assert abs(
+            w["quality"] - (baseline["quality"] + baseline["cuisine"] + baseline["audience"])
+        ) < 1e-9
         assert abs(sum(w.values()) - 1.0) < 1e-9
 
     def test_get_profile_redistributes_missing_audience(self):
-        baseline = PROFILES["family"]
-        w = get_profile("family", has_cuisine=True, has_audience=False)
+        baseline = PROFILES["balanced"]
+        w = get_profile("balanced", has_cuisine=True, has_audience=False)
         assert w["audience"] == 0.0
         assert abs(w["quality"] - (baseline["quality"] + baseline["audience"])) < 1e-9
         assert abs(sum(w.values()) - 1.0) < 1e-9
+
+    def test_get_profile_boosts_audience_when_set(self):
+        baseline = PROFILES["balanced"]
+        w = get_profile("balanced", has_cuisine=True, has_audience=True)
+        assert w["audience"] > baseline["audience"]
+        assert abs(sum(w.values()) - 1.0) < 1e-9
+
+    def test_family_adult_presets_removed(self):
+        assert "family" not in PROFILES
+        assert "adult" not in PROFILES
 
     def test_get_profile_unknown_raises(self):
         with pytest.raises(ValueError):
@@ -230,7 +243,7 @@ class TestCompositeScore:
 
     def test_audience_pref_boosts_match(self):
         place = {"name": "City Zoo", "rating": 4.5, "user_ratings_total": 200, "types": ["zoo"]}
-        weights = get_profile("family")
+        weights = get_profile("balanced", has_audience=True)
         with_pref = composite_score(place, weights, audience="family")
         without_pref = composite_score(place, weights, audience=None)
         assert with_pref["breakdown"]["audience"] > without_pref["breakdown"]["audience"]

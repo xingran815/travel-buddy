@@ -22,7 +22,6 @@ def default_profile_path() -> Path:
 @dataclass
 class UserProfile:
     cuisine_prefs: list[str] = field(default_factory=list)
-    default_audience: str | None = None
     default_budget: float | None = None
     default_language: str = "en"
     disliked_keywords: list[str] = field(default_factory=list)
@@ -96,7 +95,6 @@ def load_profile(path: str | Path | None = None) -> UserProfile:
     }
     return UserProfile(
         cuisine_prefs=list(raw.get("cuisine_prefs", []) or []),
-        default_audience=raw.get("default_audience"),
         default_budget=raw.get("default_budget"),
         default_language=raw.get("default_language", "en") or "en",
         disliked_keywords=list(raw.get("disliked_keywords", []) or []),
@@ -110,7 +108,6 @@ def save_profile(profile: UserProfile, path: str | Path | None = None) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "cuisine_prefs": profile.cuisine_prefs,
-        "default_audience": profile.default_audience,
         "default_budget": profile.default_budget,
         "default_language": profile.default_language,
         "disliked_keywords": profile.disliked_keywords,

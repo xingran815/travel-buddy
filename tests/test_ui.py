@@ -11,7 +11,7 @@ from app.ui.display import (
     show_success,
 )
 from app.ui.menu import run_summarize, run_recommend, run_plan, run_settings, _is_quit, _ask_place_types
-from app.ui.prompts import _ask_categories
+from app.ui.prompts import _ask_categories, _ask_category_refinement
 
 
 class TestDisplay:
@@ -266,6 +266,63 @@ class TestAskPlaceTypesMulti:
         mock_checkbox.return_value.ask.return_value = None
         assert _ask_place_types("en") is None
         assert mock_checkbox.call_count == 1
+
+
+class TestAskCategoryRefinement:
+    @patch("app.ui.prompts.questionary.select")
+    @patch("app.ui.prompts.questionary.text")
+    def test_food_asks_vibe_and_budget_no_indoor_outdoor(self, mock_text, mock_select):
+        # Audience=any, budget=mid; vibe text
+        mock_select.return_value.ask.side_effect = ["Any", "Mid ($$)"]
+        mock_text.return_value.ask.return_value = "casual"
+        result = _ask_category_refinement(["food"], "en")
+        assert result is not None
+        assert result["audience"] is None
+        assert result["max_price"] == 2
+        assert result["vibe"] == "casual"
+        assert "indoor_outdoor" not in result
+
+    @patch("app.ui.prompts.questionary.select")
+    @patch("app.ui.prompts.questionary.text")
+    def test_sights_asks_indoor_outdoor_no_vibe(self, mock_text, mock_select):
+        mock_select.return_value.ask.side_effect = ["Any", "Outdoor", "High ($$$)"]
+        mock_text.return_value.ask.return_value = ""
+        result = _ask_category_refinement(["sights"], "en")
+        assert result is not None
+        assert result["indoor_outdoor"] == "outdoor"
+        assert result["max_price"] == 3
+        assert "vibe" not in result
+
+    @patch("app.ui.prompts.questionary.select")
+    @patch("app.ui.prompts.questionary.text")
+    def test_shopping_skips_both_extras(self, mock_text, mock_select):
+        mock_select.return_value.ask.side_effect = ["Any", "Any"]
+        result = _ask_category_refinement(["shopping"], "en")
+        assert result is not None
+        assert "indoor_outdoor" not in result
+        assert "vibe" not in result
+        assert result["max_price"] is None
+
+    @patch("app.ui.prompts.questionary.select")
+    def test_cancel_propagates_none(self, mock_select):
+        mock_select.return_value.ask.return_value = None
+        assert _ask_category_refinement(["food"], "en") is None
+
+
+class TestPriceEstimatedBadge:
+    def test_displays_estimated_marker(self, capsys):
+        places = [{
+            "name": "Mystery Bistro",
+            "score": 3.5,
+            "rating": 4.2,
+            "price_level": 2,
+            "price_level_source": "llm",
+            "user_ratings_total": 50,
+            "address": "Somewhere",
+        }]
+        show_recommendations(places, lang="en")
+        out = capsys.readouterr().out
+        assert "est." in out
 
 
 class TestMenuSettings:

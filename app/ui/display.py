@@ -58,7 +58,12 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
         name = place.get("name", "")
         address = place.get("address", "")
         price_level = place.get("price_level")
-        price = "$" * price_level if price_level else "-"
+        if price_level:
+            price = "$" * price_level
+            if place.get("price_level_source") == "llm":
+                price = f"{price} ({t('price_estimated', lang)})"
+        else:
+            price = "-"
         d = place.get("distance_km")
         distance = f"{d:.1f} km" if isinstance(d, (int, float)) else "-"
         n_reviews = place.get("user_ratings_total")

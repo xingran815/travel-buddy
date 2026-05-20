@@ -19,7 +19,7 @@ from app.reviews.profiles import DEFAULT_PROFILE
 from app.planner.generator import generate_plan
 from app.profile.store import load_profile
 from app.ui.prompts import (
-    _ask_categories, _ask_place_types, _ask_profile,
+    _ask_categories, _ask_category_refinement, _ask_place_types, _ask_profile,
     _collect_prefs, _is_quit, _prompt_continue,
 )
 
@@ -87,8 +87,7 @@ def run_recommend(lang: str = "tr"):
             return
         top_n_per = int(top_str)
         profile = _ask_profile(lang) or DEFAULT_PROFILE
-        # Use neutral prompts (audience + people + budget) when not single-type.
-        prefs = _collect_prefs([], lang)
+        prefs = _ask_category_refinement(category_ids, lang)
         if prefs is None:
             return
         show_info(t("fetching_reviews", lang, region=region))
@@ -96,11 +95,16 @@ def run_recommend(lang: str = "tr"):
             region,
             category_ids,
             top_n_per=top_n_per,
-            budget=prefs.get("budget"),
+            max_price=prefs.get("max_price"),
             profile=profile,
-            cuisine=prefs.get("cuisine"),
             audience=prefs.get("audience"),
             people=prefs.get("people", 2),
+            indoor_outdoor=prefs.get("indoor_outdoor"),
+            vibe=prefs.get("vibe"),
+            estimate_missing_price=True,
+            llm_rerank=True,
+            llm_summarize=True,
+            lang=lang,
             user_profile=load_profile(),
         )
         total = sum(len(v) for v in results_by_cat.values())
@@ -137,6 +141,10 @@ def run_recommend(lang: str = "tr"):
         cuisine=prefs.get("cuisine"),
         audience=prefs.get("audience"),
         people=prefs.get("people", 2),
+        estimate_missing_price=True,
+        llm_rerank=True,
+        llm_summarize=True,
+        lang=lang,
         user_profile=load_profile(),
     )
     show_success(t("reviews_done", lang, count=len(results)))
@@ -217,6 +225,10 @@ def run_plan(lang: str = "tr"):
             cuisine=prefs.get("cuisine"),
             audience=prefs.get("audience"),
             people=prefs.get("people", 2),
+            estimate_missing_price=True,
+            llm_rerank=True,
+            llm_summarize=True,
+            lang=lang,
             user_profile=load_profile(),
         )
         show_success(t("reviews_done", lang, count=len(review_results)))

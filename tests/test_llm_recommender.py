@@ -19,6 +19,7 @@ def temp_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(recommender, "CACHE_DIR", tmp_path)
     monkeypatch.setattr(recommender, "ASPECTS_CACHE", tmp_path / "aspects.json")
     monkeypatch.setattr(recommender, "PROS_CONS_CACHE", tmp_path / "pros_cons.json")
+    monkeypatch.setattr(recommender, "PRICE_LEVEL_CACHE", tmp_path / "price_level.json")
     return tmp_path
 
 
@@ -150,6 +151,116 @@ class TestExtractAspects:
         recommender.extract_aspects(place)
         recommender.extract_aspects(place)  # same n → cache hit
         assert provider.chat_json.call_count == 1
+
+
+class TestSplitReviews:
+    def test_top_and_bottom_disjoint(self):
+        reviews = [
+            {"rating": 5, "text": "Amazing"},
+            {"rating": 4, "text": "Good"},
+            {"rating": 3, "text": "OK"},
+            {"rating": 2, "text": "Meh"},
+            {"rating": 1, "text": "Terrible"},
+        ]
+        top, bot = recommender._split_reviews_by_rating(reviews, n_top=2, n_bot=2)
+        top_ratings = {r["rating"] for r in top}
+        bot_ratings = {r["rating"] for r in bot}
+        assert top_ratings == {5, 4}
+        assert bot_ratings == {1, 2}
+        assert not top_ratings & bot_ratings
+
+    def test_drops_blank_text_reviews(self):
+        reviews = [
+            {"rating": 5, "text": "Great"},
+            {"rating": 1, "text": ""},
+            {"rating": 1, "text": "   "},
+            {"rating": 2, "text": "Bad"},
+        ]
+        top, bot = recommender._split_reviews_by_rating(reviews, n_top=3, n_bot=3)
+        assert all(r["text"].strip() for r in top + bot)
+        assert {r["rating"] for r in top} == {5}
+        assert {r["rating"] for r in bot} == {2}
+
+    def test_small_set_no_overlap(self):
+        reviews = [
+            {"rating": 5, "text": "Loved"},
+            {"rating": 1, "text": "Hated"},
+        ]
+        top, bot = recommender._split_reviews_by_rating(reviews, n_top=3, n_bot=3)
+        assert len(top) == 1
+        assert len(bot) == 1
+        assert top[0]["rating"] == 5
+        assert bot[0]["rating"] == 1
+
+
+class TestPlaceSummary:
+    def test_emits_good_and_bad_reviews(self):
+        place = {
+            "place_id": "p1",
+            "name": "Test",
+            "rating": 4.2,
+            "user_ratings_total": 500,
+            "reviews": [
+                {"rating": 5, "text": "Stunning food"},
+                {"rating": 1, "text": "Overpriced and rude"},
+                {"rating": 4, "text": "Solid"},
+            ],
+        }
+        summary = recommender._place_summary(place)
+        assert "good_reviews" in summary
+        assert "bad_reviews" in summary
+        assert "review_excerpts" not in summary
+        assert summary["good_reviews"][0]["rating"] == 5
+        assert summary["bad_reviews"][0]["rating"] == 1
+
+
+class TestEstimatePriceLevel:
+    @patch("app.llm.recommender.get_provider")
+    def test_returns_level(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.return_value = _mock_result({"level": 3, "confidence": "med"})
+        place = {
+            "place_id": "p_est",
+            "name": "Fancy",
+            "reviews": [{"rating": 4, "text": "Pricey but worth it"}],
+        }
+        assert recommender.estimate_price_level(place) == 3
+
+    def test_empty_reviews_returns_none(self, temp_cache):
+        assert recommender.estimate_price_level({"place_id": "x", "reviews": []}) is None
+
+    @patch("app.llm.recommender.get_provider")
+    def test_cache_hit_skips_llm(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.return_value = _mock_result({"level": 2, "confidence": "high"})
+        place = {
+            "place_id": "p_cached",
+            "name": "X",
+            "reviews": [{"rating": 4, "text": "Reasonable"}],
+        }
+        recommender.estimate_price_level(place)
+        recommender.estimate_price_level(place)
+        assert provider.chat_json.call_count == 1
+
+    @patch("app.llm.recommender.get_provider")
+    def test_invalid_level_returns_none(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.return_value = _mock_result({"level": None, "confidence": "low"})
+        place = {
+            "place_id": "p_null",
+            "name": "X",
+            "reviews": [{"rating": 3, "text": "Ambiguous"}],
+        }
+        assert recommender.estimate_price_level(place) is None
+
+    @patch("app.llm.recommender.get_provider")
+    def test_llm_error_returns_none(self, mock_get_provider, temp_cache):
+        mock_get_provider.side_effect = Exception("boom")
+        place = {"place_id": "p_err", "name": "X", "reviews": [{"rating": 3, "text": "x"}]}
+        assert recommender.estimate_price_level(place) is None
 
 
 class TestAspectsScoreIntegration:

@@ -18,14 +18,6 @@ _BASE_PROFILES: dict[str, dict[str, float]] = {
         "quality": 0.22, "volume": 0.10, "distance": 0.15, "cost": 0.15,
         "recency": 0.10, "sentiment": 0.10, "audience": 0.10, "cuisine": 0.05, "aspects": 0.03,
     },
-    "family": {
-        "quality": 0.17, "volume": 0.05, "distance": 0.15, "cost": 0.10,
-        "recency": 0.05, "sentiment": 0.10, "audience": 0.30, "cuisine": 0.05, "aspects": 0.03,
-    },
-    "adult": {
-        "quality": 0.17, "volume": 0.05, "distance": 0.10, "cost": 0.10,
-        "recency": 0.10, "sentiment": 0.10, "audience": 0.30, "cuisine": 0.05, "aspects": 0.03,
-    },
     "foodie": {
         "quality": 0.22, "volume": 0.10, "distance": 0.05, "cost": 0.05,
         "recency": 0.10, "sentiment": 0.15, "audience": 0.05, "cuisine": 0.25, "aspects": 0.03,
@@ -39,6 +31,8 @@ _BASE_PROFILES: dict[str, dict[str, float]] = {
         "recency": 0.05, "sentiment": 0.15, "audience": 0.10, "cuisine": 0.02, "aspects": 0.25,
     },
 }
+
+AUDIENCE_BOOST = 2.5
 
 
 def _with_history(base: dict[str, float]) -> dict[str, float]:
@@ -79,5 +73,20 @@ def get_profile(
 
     if redistribute > 0:
         weights["quality"] += redistribute
+
+    if has_audience and weights["audience"] > 0:
+        aud = weights["audience"]
+        new_aud = aud * AUDIENCE_BOOST
+        diff = new_aud - aud
+        other_total = sum(v for k, v in weights.items() if k != "audience")
+        if other_total > 0:
+            for k in list(weights.keys()):
+                if k != "audience":
+                    weights[k] = max(0.0, weights[k] - diff * (weights[k] / other_total))
+            weights["audience"] = new_aud
+            total = sum(weights.values())
+            if total > 0:
+                for k in weights:
+                    weights[k] /= total
 
     return weights

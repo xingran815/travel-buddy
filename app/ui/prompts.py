@@ -3,7 +3,7 @@ from app.i18n.strings import t
 from app.reviews.categories import CATEGORY_ORDER
 from app.ui.type_prompts import prompts_for_types
 
-PROFILE_ORDER = ("balanced", "family", "adult", "foodie", "budget", "aspect-heavy")
+PROFILE_ORDER = ("balanced", "foodie", "budget", "aspect-heavy")
 
 _QUIT = object()
 
@@ -104,6 +104,61 @@ def _ask_indoor_outdoor(lang: str) -> dict | None:
 
 def _ask_audience_prompt(lang: str) -> dict | None:
     return {"audience": _ask_audience(lang)}
+
+
+def _ask_budget_tier(lang: str) -> dict | None:
+    any_label = t("any_choice", lang)
+    low_label = t("budget_low", lang)
+    mid_label = t("budget_mid", lang)
+    high_label = t("budget_high", lang)
+    selected = questionary.select(
+        t("prompt_budget_tier", lang),
+        choices=[any_label, low_label, mid_label, high_label],
+    ).ask()
+    if selected is None:
+        return None
+    mapping = {any_label: None, low_label: 1, mid_label: 2, high_label: 3}
+    return {"max_price": mapping.get(selected)}
+
+
+CATEGORIES_WITH_INDOOR_OUTDOOR = frozenset(
+    {"sights", "museums", "nature", "family", "nightlife"}
+)
+CATEGORIES_WITH_VIBE = frozenset({"nightlife", "food"})
+
+
+def _ask_category_refinement(category_ids: list[str], lang: str) -> dict | None:
+    """Ask a short, universal refinement set for the Browse-by-category path.
+
+    Indoor/outdoor and vibe are only asked when at least one selected category
+    can benefit; budget tier and audience are always asked.
+    """
+    prefs: dict = {"people": 2}
+    cat_set = set(category_ids)
+
+    audience_patch = _ask_audience_prompt(lang)
+    if audience_patch is None:
+        return None
+    prefs.update(audience_patch)
+
+    if cat_set & CATEGORIES_WITH_INDOOR_OUTDOOR:
+        io = _ask_indoor_outdoor(lang)
+        if io is None:
+            return None
+        prefs.update(io)
+
+    tier = _ask_budget_tier(lang)
+    if tier is None:
+        return None
+    prefs.update(tier)
+
+    if cat_set & CATEGORIES_WITH_VIBE:
+        vibe = _ask_vibe(lang)
+        if vibe is None:
+            return None
+        prefs.update(vibe)
+
+    return prefs
 
 
 PROMPT_HANDLERS = {

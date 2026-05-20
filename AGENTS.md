@@ -16,6 +16,11 @@ Config is loaded from `.env` at **import time** as module-level globals (`app/co
 pylint app main.py     # static analysis (config: .pylintrc)
 ```
 
+## Coding Style
+
+- a source code file shouldn't exceed 330 lines
+- a function shouldn't exceed 50 lines
+
 ## Testing
 
 ```bash

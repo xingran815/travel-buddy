@@ -91,7 +91,6 @@ class TestPersistence:
     def test_roundtrip(self, tmp_path):
         profile = UserProfile(
             cuisine_prefs=["japanese", "italian"],
-            default_audience="adult",
             default_budget=200.0,
             default_language="tr",
             disliked_keywords=["loud"],
@@ -104,7 +103,6 @@ class TestPersistence:
         loaded = load_profile(path)
 
         assert loaded.cuisine_prefs == ["japanese", "italian"]
-        assert loaded.default_audience == "adult"
         assert loaded.default_budget == 200.0
         assert loaded.default_language == "tr"
         assert loaded.disliked_keywords == ["loud"]
