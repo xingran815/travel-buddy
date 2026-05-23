@@ -26,7 +26,7 @@ _BASE_PROFILES: dict[str, dict[str, float]] = {
         "quality": 0.17, "volume": 0.10, "distance": 0.10, "cost": 0.35,
         "recency": 0.05, "sentiment": 0.10, "audience": 0.05, "cuisine": 0.05, "aspects": 0.03,
     },
-    "aspect-heavy": {
+    "atmosphere": {
         "quality": 0.20, "volume": 0.03, "distance": 0.10, "cost": 0.10,
         "recency": 0.05, "sentiment": 0.15, "audience": 0.10, "cuisine": 0.02, "aspects": 0.25,
     },

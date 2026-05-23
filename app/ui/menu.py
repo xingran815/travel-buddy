@@ -79,6 +79,10 @@ def run_recommend(lang: str = "tr"):
         category_ids = _ask_categories(lang)
         if not category_ids:
             return
+        profile = _ask_profile(lang) or DEFAULT_PROFILE
+        prefs = _ask_category_refinement(category_ids, profile, lang)
+        if prefs is None:
+            return
         top_str = questionary.select(
             "How many per category?" if lang == "en" else "Kategori başına kaç tane?",
             choices=count_choices,
@@ -86,10 +90,6 @@ def run_recommend(lang: str = "tr"):
         if top_str is None:
             return
         top_n_per = int(top_str)
-        profile = _ask_profile(lang) or DEFAULT_PROFILE
-        prefs = _ask_category_refinement(category_ids, lang)
-        if prefs is None:
-            return
         show_info(t("fetching_reviews", lang, region=region))
         results_by_cat = recommend_by_categories(
             region,

@@ -362,5 +362,5 @@ class TestAspectsScoreIntegration:
             "r1": {"romantic": 0.95, "view": 0.8},
             "l1": {"romantic": 0.05, "view": 0.1},
         }
-        results = recommend_places("X", top_n=2, profile="aspect-heavy", aspects=["romantic", "view"])
+        results = recommend_places("X", top_n=2, profile="atmosphere", aspects=["romantic", "view"])
         assert results[0]["name"] == "Romantic"

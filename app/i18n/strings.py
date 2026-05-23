@@ -103,6 +103,10 @@ STRINGS = {
         "en": "Budget",
         "tr": "Ekonomik",
     },
+    "profile_atmosphere": {
+        "en": "Atmosphere",
+        "tr": "Atmosfer",
+    },
     "prompt_cuisine": {
         "en": "Preferred cuisine (enter to skip):",
         "tr": "Tercih edilen mutfak (atlamak için Enter):",
@@ -214,8 +218,8 @@ STRINGS = {
         "tr": "Konu (tarih/sanat/bilim, atlamak için Enter):",
     },
     "prompt_vibe": {
-        "en": "Vibe (cocktail/dance/sports, enter to skip):",
-        "tr": "Atmosfer (kokteyl/dans/spor, atlamak için Enter):",
+        "en": "Atmosphere / style (e.g. cozy, rooftop, lively; enter to skip):",
+        "tr": "Atmosfer / tarz (örn. samimi, teras, canlı; atlamak için Enter):",
     },
     "prompt_indoor_outdoor": {
         "en": "Indoor or outdoor?",
@@ -272,6 +276,26 @@ STRINGS = {
     "price_estimated": {
         "en": "est.",
         "tr": "tahmini",
+    },
+    "prompt_filters": {
+        "en": "Filters (optional, Enter to skip):",
+        "tr": "Filtreler (isteğe bağlı, atlamak için Enter):",
+    },
+    "filter_group_audience": {
+        "en": "Audience",
+        "tr": "Hedef kitle",
+    },
+    "filter_group_setting": {
+        "en": "Setting",
+        "tr": "Mekân",
+    },
+    "filter_group_budget": {
+        "en": "Budget",
+        "tr": "Bütçe",
+    },
+    "filter_conflict_hint": {
+        "en": "Pick at most one per group. Use SPACE to toggle, ENTER to confirm.",
+        "tr": "Her gruptan en fazla bir seçim yapın. Seçmek için SPACE, onaylamak için ENTER.",
     },
 }
 

@@ -269,44 +269,74 @@ class TestAskPlaceTypesMulti:
 
 
 class TestAskCategoryRefinement:
-    @patch("app.ui.prompts.questionary.select")
+    @patch("app.ui.prompts.questionary.checkbox")
     @patch("app.ui.prompts.questionary.text")
-    def test_food_asks_vibe_and_budget_no_indoor_outdoor(self, mock_text, mock_select):
-        # Audience=any, budget=mid; vibe text
-        mock_select.return_value.ask.side_effect = ["Any", "Mid ($$)"]
+    def test_food_selects_budget_and_vibe(self, mock_text, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = ["Mid ($$)"]
         mock_text.return_value.ask.return_value = "casual"
-        result = _ask_category_refinement(["food"], "en")
+        result = _ask_category_refinement(["food"], "balanced", "en")
         assert result is not None
-        assert result["audience"] is None
         assert result["max_price"] == 2
         assert result["vibe"] == "casual"
         assert "indoor_outdoor" not in result
 
-    @patch("app.ui.prompts.questionary.select")
+    @patch("app.ui.prompts.questionary.checkbox")
     @patch("app.ui.prompts.questionary.text")
-    def test_sights_asks_indoor_outdoor_no_vibe(self, mock_text, mock_select):
-        mock_select.return_value.ask.side_effect = ["Any", "Outdoor", "High ($$$)"]
+    def test_food_empty_filters_defaults_to_any(self, mock_text, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = []
         mock_text.return_value.ask.return_value = ""
-        result = _ask_category_refinement(["sights"], "en")
+        result = _ask_category_refinement(["food"], "balanced", "en")
+        assert result is not None
+        assert "audience" not in result
+        assert "max_price" not in result
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_sights_selects_outdoor_and_budget(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = ["Outdoor", "High ($$$)"]
+        result = _ask_category_refinement(["sights"], "balanced", "en")
         assert result is not None
         assert result["indoor_outdoor"] == "outdoor"
         assert result["max_price"] == 3
         assert "vibe" not in result
 
-    @patch("app.ui.prompts.questionary.select")
-    @patch("app.ui.prompts.questionary.text")
-    def test_shopping_skips_both_extras(self, mock_text, mock_select):
-        mock_select.return_value.ask.side_effect = ["Any", "Any"]
-        result = _ask_category_refinement(["shopping"], "en")
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_shopping_empty_filters(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = []
+        result = _ask_category_refinement(["shopping"], "balanced", "en")
         assert result is not None
         assert "indoor_outdoor" not in result
         assert "vibe" not in result
-        assert result["max_price"] is None
+        assert "max_price" not in result
 
-    @patch("app.ui.prompts.questionary.select")
-    def test_cancel_propagates_none(self, mock_select):
-        mock_select.return_value.ask.return_value = None
-        assert _ask_category_refinement(["food"], "en") is None
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_cancel_propagates_none(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = None
+        assert _ask_category_refinement(["food"], "balanced", "en") is None
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_family_category_skips_audience_choices(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = []
+        result = _ask_category_refinement(["family"], "balanced", "en")
+        assert result is not None
+        assert result["audience"] == "family"
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_budget_profile_skips_budget_tier(self, mock_checkbox):
+        mock_checkbox.return_value.ask.return_value = []
+        result = _ask_category_refinement(["shopping"], "budget", "en")
+        assert result is not None
+        assert "max_price" not in result
+
+    @patch("app.ui.prompts.questionary.checkbox")
+    def test_conflict_reprompts(self, mock_checkbox):
+        mock_checkbox.return_value.ask.side_effect = [
+            ["Indoor", "Outdoor"],
+            ["Indoor"],
+        ]
+        result = _ask_category_refinement(["sights"], "balanced", "en")
+        assert result is not None
+        assert result["indoor_outdoor"] == "indoor"
+        assert mock_checkbox.call_count == 2
 
 
 class TestPriceEstimatedBadge:

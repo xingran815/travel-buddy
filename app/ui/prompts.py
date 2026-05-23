@@ -3,7 +3,7 @@ from app.i18n.strings import t
 from app.reviews.categories import CATEGORY_ORDER
 from app.ui.type_prompts import prompts_for_types
 
-PROFILE_ORDER = ("balanced", "foodie", "budget", "aspect-heavy")
+PROFILE_ORDER = ("balanced", "foodie", "budget", "atmosphere")
 
 _QUIT = object()
 
@@ -127,30 +127,74 @@ CATEGORIES_WITH_INDOOR_OUTDOOR = frozenset(
 CATEGORIES_WITH_VIBE = frozenset({"nightlife", "food"})
 
 
-def _ask_category_refinement(category_ids: list[str], lang: str) -> dict | None:
-    """Ask a short, universal refinement set for the Browse-by-category path.
+def _build_filter_choices(
+    category_ids: list[str], profile: str, lang: str
+) -> tuple[list, dict[str, tuple[str, object]]]:
+    """Build checkbox choices and a mapping from label → (pref_key, value)."""
+    choices: list = []
+    mapping: dict[str, tuple[str, object]] = {}
+    cat_set = set(category_ids)
 
-    Indoor/outdoor and vibe are only asked when at least one selected category
-    can benefit; budget tier and audience are always asked.
-    """
+    if "family" not in cat_set:
+        choices.append(questionary.Separator(f"── {t('filter_group_audience', lang)} ──"))
+        for key_suffix, pref_val in (("family", "family"), ("adult", "adult")):
+            label = t(f"audience_{key_suffix}", lang)
+            choices.append(label)
+            mapping[label] = ("audience", pref_val)
+
+    if cat_set & CATEGORIES_WITH_INDOOR_OUTDOOR:
+        choices.append(questionary.Separator(f"── {t('filter_group_setting', lang)} ──"))
+        for key_suffix, pref_val in (("indoor", "indoor"), ("outdoor", "outdoor")):
+            label = t(key_suffix, lang)
+            choices.append(label)
+            mapping[label] = ("indoor_outdoor", pref_val)
+
+    if profile != "budget":
+        choices.append(questionary.Separator(f"── {t('filter_group_budget', lang)} ──"))
+        for key_suffix, price in (("low", 1), ("mid", 2), ("high", 3)):
+            label = t(f"budget_{key_suffix}", lang)
+            choices.append(label)
+            mapping[label] = ("max_price", price)
+
+    return choices, mapping
+
+
+def _has_conflicts(selected: list[str], mapping: dict[str, tuple[str, object]]) -> bool:
+    seen_keys: dict[str, int] = {}
+    for label in selected:
+        key, _ = mapping[label]
+        seen_keys[key] = seen_keys.get(key, 0) + 1
+    return any(v > 1 for v in seen_keys.values())
+
+
+def _ask_category_refinement(
+    category_ids: list[str], profile: str, lang: str
+) -> dict | None:
     prefs: dict = {"people": 2}
     cat_set = set(category_ids)
 
-    audience_patch = _ask_audience_prompt(lang)
-    if audience_patch is None:
-        return None
-    prefs.update(audience_patch)
+    if "family" in cat_set:
+        prefs["audience"] = "family"
 
-    if cat_set & CATEGORIES_WITH_INDOOR_OUTDOOR:
-        io = _ask_indoor_outdoor(lang)
-        if io is None:
+    choices, mapping = _build_filter_choices(category_ids, profile, lang)
+
+    if choices:
+        from app.ui.display import show_info
+        for _ in range(2):
+            selected = questionary.checkbox(
+                t("prompt_filters", lang),
+                choices=choices,
+            ).ask()
+            if selected is None:
+                return None
+            if not _has_conflicts(selected, mapping):
+                break
+            show_info(t("filter_conflict_hint", lang))
+        else:
             return None
-        prefs.update(io)
-
-    tier = _ask_budget_tier(lang)
-    if tier is None:
-        return None
-    prefs.update(tier)
+        for label in selected:
+            key, value = mapping[label]
+            prefs[key] = value
 
     if cat_set & CATEGORIES_WITH_VIBE:
         vibe = _ask_vibe(lang)
