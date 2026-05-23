@@ -170,6 +170,33 @@ class TestRerankWithProsCons:
         )
         assert out == places
 
+    @patch("app.llm.recommender.get_provider")
+    def test_backfill_place_gets_pros_cons(self, mock_get_provider, temp_cache):
+        provider = MagicMock()
+        mock_get_provider.return_value = provider
+        provider.chat_json.side_effect = [
+            _mock_result({
+                "order": [
+                    {"place_id": "A", "rationale": "Top",
+                     "pros": ["Great"], "cons": ["Noisy"]},
+                ]
+            }),
+            _mock_result({"pros": ["Historic", "Scenic"], "cons": ["Crowded", "Pricey"]}),
+        ]
+        places = [
+            {"place_id": "A", "name": "Alpha", "score_breakdown": {},
+             "reviews": [{"rating": 5, "text": "Great steak"}]},
+            {"place_id": "B", "name": "Beta", "score_breakdown": {},
+             "reviews": [{"rating": 4, "text": "Nice view"}]},
+        ]
+        out = recommender.rerank_with_pros_cons(
+            places, query="x", profile="balanced", prefs={}, k_out=2, lang="en",
+        )
+        assert out[0]["pros"] == ["Great"]
+        assert out[1]["pros"] == ["Historic", "Scenic"]
+        assert out[1]["cons"] == ["Crowded", "Pricey"]
+        assert provider.chat_json.call_count == 2
+
 
 class TestProsCons:
     @patch("app.llm.recommender.get_provider")

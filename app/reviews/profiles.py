@@ -15,20 +15,20 @@ HISTORY_WEIGHT = 0.06
 
 _BASE_PROFILES: dict[str, dict[str, float]] = {
     "balanced": {
-        "quality": 0.22, "volume": 0.10, "distance": 0.15, "cost": 0.15,
-        "recency": 0.10, "sentiment": 0.10, "audience": 0.10, "cuisine": 0.05, "aspects": 0.03,
+        "quality": 0.27, "volume": 0.10, "distance": 0.05, "cost": 0.15,
+        "recency": 0.10, "sentiment": 0.15, "audience": 0.10, "cuisine": 0.05, "aspects": 0.03,
     },
     "foodie": {
-        "quality": 0.22, "volume": 0.10, "distance": 0.05, "cost": 0.05,
+        "quality": 0.24, "volume": 0.10, "distance": 0.03, "cost": 0.05,
         "recency": 0.10, "sentiment": 0.15, "audience": 0.05, "cuisine": 0.25, "aspects": 0.03,
     },
     "budget": {
-        "quality": 0.17, "volume": 0.10, "distance": 0.10, "cost": 0.35,
-        "recency": 0.05, "sentiment": 0.10, "audience": 0.05, "cuisine": 0.05, "aspects": 0.03,
+        "quality": 0.20, "volume": 0.10, "distance": 0.05, "cost": 0.35,
+        "recency": 0.05, "sentiment": 0.12, "audience": 0.05, "cuisine": 0.05, "aspects": 0.03,
     },
     "atmosphere": {
-        "quality": 0.20, "volume": 0.03, "distance": 0.10, "cost": 0.10,
-        "recency": 0.05, "sentiment": 0.15, "audience": 0.10, "cuisine": 0.02, "aspects": 0.25,
+        "quality": 0.22, "volume": 0.03, "distance": 0.05, "cost": 0.10,
+        "recency": 0.05, "sentiment": 0.18, "audience": 0.10, "cuisine": 0.02, "aspects": 0.25,
     },
 }
 

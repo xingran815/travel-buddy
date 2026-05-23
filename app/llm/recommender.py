@@ -222,6 +222,14 @@ def rerank_with_pros_cons(
     order = out.get("order") or []
     reranked = _apply_rerank_order(order, places, k_out)
     _attach_and_cache_pros_cons(reranked, order, places, lang)
+    missing = [p for p in reranked if not p.get("pros") and not p.get("cons")]
+    if missing:
+        backfill = summarize_pros_cons_batch(missing, lang=lang, budget=budget)
+        for p in missing:
+            s = backfill.get(p.get("place_id", ""))
+            if s:
+                p["pros"] = s.get("pros", [])
+                p["cons"] = s.get("cons", [])
     return reranked
 
 

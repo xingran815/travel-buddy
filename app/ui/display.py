@@ -29,12 +29,20 @@ def show_summary(text: str, lang: str = "tr"):
 
 def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:
     from app.i18n.strings import t
-    parts = []
+    total = sum(breakdown.values())
+    if total <= 0:
+        return ""
+    items = []
     for k in FACTOR_KEYS:
         v = breakdown.get(k, 0.0)
-        label = t(f"factor_{k}", lang)
-        parts.append(f"{label} {v:.2f}")
-    return " · ".join(parts)
+        if v <= 0:
+            continue
+        pct = round(v / total * 100)
+        if pct < 1:
+            continue
+        items.append((pct, t(f"factor_{k}", lang)))
+    items.sort(key=lambda x: x[0], reverse=True)
+    return " · ".join(f"{label} {pct}%" for pct, label in items)
 
 
 def show_recommendations(places: list[dict], lang: str = "tr"):
@@ -67,7 +75,7 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
         d = place.get("distance_km")
         distance = f"{d:.1f} km" if isinstance(d, (int, float)) else "-"
         n_reviews = place.get("user_ratings_total")
-        n_reviews_str = str(n_reviews) if n_reviews else "-"
+        n_reviews_str = f"{n_reviews:,}" if n_reviews else "-"
         table.add_row(str(i), name, score_str, rating, distance, n_reviews_str, price, address)
 
     console.print()
@@ -99,7 +107,10 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
             console.print(f"  [dim]{t('label_reviews', lang)}:[/dim]")
             for rev in reviews[:3]:
                 stars = "⭐" * rev.get("rating", 0)
-                console.print(f"    {stars} [dim]{rev.get('author', '')}[/dim]: {rev.get('text', '')[:120]}")
+                text = (rev.get("text") or "")[:140]
+                if len(rev.get("text") or "") > 140:
+                    text = text[:text.rfind(" ")] + "…" if " " in text else text + "…"
+                console.print(f"    {stars} [dim]{rev.get('author', '')}[/dim]: {text}")
 
 
 def show_categorized_recommendations(results_by_category: dict[str, list[dict]], lang: str = "tr"):
