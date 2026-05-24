@@ -21,7 +21,7 @@ def _mock_place(place_id, name, rating=4.0, n=200, price=2, types=None, lat=None
 class TestRecommendSanity:
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_no_closed_permanently_in_top(self, mock_geo, mock_search, mock_batch):
         # search_places already filters CLOSED_PERMANENTLY at extraction time, so simulate that here
         mock_search.return_value = [
@@ -35,7 +35,7 @@ class TestRecommendSanity:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_sorted_descending_by_score(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [
             _mock_place(str(i), f"P{i}", rating=4.0 + (i % 5) * 0.1, n=100 + i * 50)
@@ -48,7 +48,7 @@ class TestRecommendSanity:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_breakdown_keys_complete(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [_mock_place("1", "A")]
         mock_batch.return_value = {"1": {"reviews": []}}
@@ -57,7 +57,7 @@ class TestRecommendSanity:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_budget_profile_weights_cost_more_than_balanced(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [_mock_place("1", "Pricy", price=4, rating=4.5, n=300)]
         budget_res = recommend_places(
@@ -77,7 +77,7 @@ class TestRecommendSanity:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_budget_profile_picks_cheaper_in_close_quality_race(self, mock_geo, mock_search, mock_batch):
         # Very similar rating, different price → budget profile should prefer cheaper.
         mock_search.return_value = [
@@ -89,7 +89,7 @@ class TestRecommendSanity:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_multi_type_includes_diversity(self, mock_geo, mock_search, mock_batch):
         restaurants = [_mock_place(f"r{i}", f"R{i}", types=["restaurant"]) for i in range(3)]
         museums = [_mock_place(f"m{i}", f"M{i}", types=["museum"], rating=4.6) for i in range(3)]

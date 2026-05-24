@@ -253,7 +253,8 @@ class TestPagination:
 class TestMultiTypeSearch:
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    def test_multi_type_merges_results(self, mock_search, mock_batch):
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
+    def test_multi_type_merges_results(self, mock_geo, mock_search, mock_batch):
         restaurants = [
             {"name": "Resto A", "place_id": "r1", "rating": 4.5, "user_ratings_total": 500, "address": "Addr", "types": ["restaurant"], "price_level": None},
         ]
@@ -272,7 +273,8 @@ class TestMultiTypeSearch:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    def test_single_type_fallback(self, mock_search, mock_batch):
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
+    def test_single_type_fallback(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [
             {"name": "A", "place_id": "1", "rating": 4.0, "user_ratings_total": 100, "address": "Addr", "types": ["restaurant"], "price_level": None},
         ]
@@ -347,9 +349,10 @@ class TestGeocodeRegion:
         mock_gmaps = MagicMock()
         mock_get_client.return_value = mock_gmaps
         mock_gmaps.geocode.return_value = [{"geometry": {"location": {"lat": 41.0, "lng": 29.0}}}]
-        center, d_half = _geocode_region("Istanbul")
+        center, d_half, search_radius_m = _geocode_region("Istanbul")
         assert center == (41.0, 29.0)
         assert d_half == DEFAULT_D_HALF_KM
+        assert search_radius_m is None
 
     @patch("app.reviews.search.get_client")
     def test_returns_d_half_from_viewport(self, mock_get_client):
@@ -366,8 +369,9 @@ class TestGeocodeRegion:
                 },
             }
         }]
-        _, d_half = _geocode_region("CityA")
+        _, d_half, search_radius_m = _geocode_region("CityA")
         assert d_half > 0.5
+        assert search_radius_m is not None
 
     @patch("app.reviews.search.get_client")
     def test_big_viewport_yields_larger_d_half(self, mock_get_client):
@@ -394,16 +398,18 @@ class TestGeocodeRegion:
             }
         }
         mock_gmaps.geocode.side_effect = [[small], [big]]
-        _, d_small = _geocode_region("SmallTown")
-        _, d_big = _geocode_region("BigCity")
+        _, d_small, r_small = _geocode_region("SmallTown")
+        _, d_big, r_big = _geocode_region("BigCity")
         assert d_big > d_small * 5
+        assert r_big > r_small
 
     @patch("app.reviews.search.get_client", side_effect=Exception("no api key"))
     def test_failure_returns_default(self, mock_get_client):
         from app.reviews.search import _geocode_region, DEFAULT_D_HALF_KM
-        center, d_half = _geocode_region("Nowhere")
+        center, d_half, search_radius_m = _geocode_region("Nowhere")
         assert center is None
         assert d_half == DEFAULT_D_HALF_KM
+        assert search_radius_m is None
 
     @patch("sys.stdin.isatty", return_value=False)
     @patch("app.reviews.search.get_client")
@@ -417,7 +423,7 @@ class TestGeocodeRegion:
             {"formatted_address": "Springfield, MO, USA",
              "geometry": {"location": {"lat": 37.21, "lng": -93.30}}},
         ]
-        center, _ = _geocode_region("Springfield")
+        center, _, _ = _geocode_region("Springfield")
         assert center == (39.78, -89.65)  # falls back to first
 
     @patch("sys.stdin.isatty", return_value=True)
@@ -433,8 +439,42 @@ class TestGeocodeRegion:
             {"formatted_address": "Cambridge, MA, USA",
              "geometry": {"location": {"lat": 42.37, "lng": -71.11}}},
         ]
-        center, _ = _geocode_region("Cambridge")
+        center, _, _ = _geocode_region("Cambridge")
         assert center == (42.37, -71.11)
+
+
+class TestSearchGrid:
+    def test_small_radius_returns_single_point(self):
+        from app.reviews.search import _make_search_grid
+        center = (53.55, 10.0)
+        points = _make_search_grid(center, 4000)
+        assert len(points) == 1
+        assert points[0][0] == center
+
+    def test_large_radius_returns_five_points(self):
+        from app.reviews.search import _make_search_grid
+        center = (53.55, 10.0)
+        points = _make_search_grid(center, 20000)
+        assert len(points) == 5
+        for loc, rad in points:
+            assert rad < 20000
+
+    def test_grid_points_are_spread_out(self):
+        from app.reviews.search import _make_search_grid
+        from app.reviews.factors import haversine
+        center = (53.55, 10.0)
+        points = _make_search_grid(center, 20000)
+        locs = [loc for loc, _ in points]
+        for i in range(len(locs)):
+            for j in range(i + 1, len(locs)):
+                assert haversine(locs[i], locs[j]) > 1.0
+
+    def test_sub_radius_capped(self):
+        from app.reviews.search import _make_search_grid, MAX_SEARCH_RADIUS_M
+        center = (53.55, 10.0)
+        points = _make_search_grid(center, 200_000)
+        for _, rad in points:
+            assert rad <= MAX_SEARCH_RADIUS_M
 
 
 class TestClosedFiltering:
@@ -471,7 +511,7 @@ class TestClosedFiltering:
 class TestRecommendBreakdown:
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_results_include_breakdown(self, mock_geo, mock_search, mock_batch):
         mock_search.return_value = [
             {"name": "A", "place_id": "1", "rating": 4.5, "user_ratings_total": 200, "address": "Addr", "types": ["restaurant"], "price_level": 2, "lat": None, "lng": None},
@@ -487,7 +527,7 @@ class TestRecommendBreakdown:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_profile_changes_ordering(self, mock_geo, mock_search, mock_batch):
         # Place A: high rating but expensive. Place B: average rating but very cheap.
         mock_search.return_value = [
@@ -506,7 +546,7 @@ class TestRecommendBreakdown:
 
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     def test_user_profile_history_lifts_liked_place(self, mock_geo, mock_search, mock_batch):
         from app.profile.store import UserProfile
 

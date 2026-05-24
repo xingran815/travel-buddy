@@ -12,7 +12,7 @@ from app.reviews.pipeline import (
 from app.reviews.profiles import get_profile, DEFAULT_PROFILE
 from app.reviews.search import (
     search_places, _deduplicate, _geocode_region, _budget_to_max_price,
-    _fetch_details_batch, get_client, DEFAULT_D_HALF_KM,
+    _fetch_details_batch, get_client, DEFAULT_D_HALF_KM, _make_search_grid,
 )
 
 
@@ -67,9 +67,22 @@ def recommend_places(
     t_total = time.perf_counter()
 
     t0 = time.perf_counter()
+    if location is not None:
+        center = location
+        d_half = DEFAULT_D_HALF_KM
+        search_points = [(location, radius)] if radius else []
+    else:
+        center, d_half, search_radius_m = _geocode_region(region)
+        if center is not None and search_radius_m is not None:
+            search_points = _make_search_grid(center, search_radius_m)
+        else:
+            search_points = []
+    timings["geocode"] = time.perf_counter() - t0
+
+    t0 = time.perf_counter()
     all_places = _search_all_types(
         region, types, max_pages=max_pages, min_price=min_price,
-        max_price=max_price, location=location, radius=radius,
+        max_price=max_price, search_points=search_points,
     )
     timings["search"] = time.perf_counter() - t0
 
@@ -80,14 +93,6 @@ def recommend_places(
             p for p in all_places
             if factors.infer_indoor_outdoor(p.get("types")) in (indoor_outdoor, None)
         ]
-
-    t0 = time.perf_counter()
-    if location is not None:
-        center = location
-        d_half = DEFAULT_D_HALF_KM
-    else:
-        center, d_half = _geocode_region(region)
-    timings["geocode"] = time.perf_counter() - t0
     weights = get_profile(profile, has_cuisine=bool(cuisine), has_audience=bool(audience))
 
     aspects_cache: dict[str, dict[str, float]] = {}
@@ -197,24 +202,33 @@ def _search_all_types(
     max_pages: int,
     min_price: int | None,
     max_price: int | None,
-    location: tuple[float, float] | None,
-    radius: int | None,
+    search_points: list[tuple[tuple[float, float], int]],
 ) -> list[dict]:
-    if len(types) == 1:
+    tasks = []
+    if search_points:
+        for pt in types:
+            for loc, rad in search_points:
+                tasks.append((pt, loc, rad))
+    else:
+        for pt in types:
+            tasks.append((pt, None, None))
+
+    if len(tasks) == 1:
+        pt, loc, rad = tasks[0]
         return search_places(
-            region, place_type=types[0], max_pages=max_pages,
+            region, place_type=pt, max_pages=max_pages,
             min_price=min_price, max_price=max_price,
-            location=location, radius=radius,
+            location=loc, radius=rad,
         )
-    workers = min(len(types), 6)
+    workers = min(len(tasks), 10)
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futures = [
             ex.submit(
                 search_places, region, place_type=pt, max_pages=max_pages,
                 min_price=min_price, max_price=max_price,
-                location=location, radius=radius,
+                location=loc, radius=rad,
             )
-            for pt in types
+            for pt, loc, rad in tasks
         ]
         out: list[dict] = []
         for f in futures:

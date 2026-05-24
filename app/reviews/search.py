@@ -1,3 +1,4 @@
+import math
 import sys
 import threading
 import time
@@ -100,12 +101,15 @@ def _pick_geocode_candidate(candidates: list[dict], region: str) -> dict:
             return candidates[choice - 1]
 
 
-def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float]:
+MAX_SEARCH_RADIUS_M = 50_000
+
+
+def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float, int | None]:
     try:
         gmaps = get_client()
         results = gmaps.geocode(region)
         if not results:
-            return None, DEFAULT_D_HALF_KM
+            return None, DEFAULT_D_HALF_KM, None
         chosen = _pick_geocode_candidate(results, region)
         geom = chosen["geometry"]
         loc = geom["location"]
@@ -118,12 +122,37 @@ def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float]:
                 (float(ne["lat"]), float(ne["lng"])),
                 (float(sw["lat"]), float(sw["lng"])),
             )
-            d_half = max(0.5, diag / 6.0)
+            d_half = max(0.5, diag / 3.0)
+            search_radius_m = int(min(diag * 1000 / 2, MAX_SEARCH_RADIUS_M))
         else:
             d_half = DEFAULT_D_HALF_KM
-        return center, d_half
+            search_radius_m = None
+        return center, d_half, search_radius_m
     except Exception:
-        return None, DEFAULT_D_HALF_KM
+        return None, DEFAULT_D_HALF_KM, None
+
+
+_GRID_MIN_RADIUS_M = 5000
+
+
+def _make_search_grid(
+    center: tuple[float, float],
+    search_radius_m: int,
+) -> list[tuple[tuple[float, float], int]]:
+    sub_radius = int(min(search_radius_m * 0.5, MAX_SEARCH_RADIUS_M))
+    if search_radius_m <= _GRID_MIN_RADIUS_M:
+        return [(center, sub_radius)]
+    offset_m = search_radius_m * 0.4
+    lat, lng = center
+    dlat = offset_m / 111_320
+    dlng = offset_m / (111_320 * math.cos(math.radians(lat)))
+    return [
+        (center, sub_radius),
+        ((lat + dlat, lng + dlng), sub_radius),
+        ((lat + dlat, lng - dlng), sub_radius),
+        ((lat - dlat, lng + dlng), sub_radius),
+        ((lat - dlat, lng - dlng), sub_radius),
+    ]
 
 
 def search_places(
@@ -145,7 +174,7 @@ def search_places(
             time.sleep(2)
             results = gmaps.places(query=query, page_token=token)
         elif location and radius:
-            results = gmaps.places_nearby(location=location, radius=radius, type=place_type, keyword=region)
+            results = gmaps.places_nearby(location=location, radius=radius, type=place_type)
         else:
             results = gmaps.places(query=query)
         all_raw.extend(results.get("results", []))

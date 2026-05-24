@@ -374,7 +374,7 @@ class TestEstimatePriceLevel:
 
 
 class TestAspectsScoreIntegration:
-    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0))
+    @patch("app.reviews.checker._geocode_region", return_value=(None, 3.0, None))
     @patch("app.reviews.checker._fetch_details_batch")
     @patch("app.reviews.checker.search_places")
     @patch("app.llm.recommender.load_aspects_cache")

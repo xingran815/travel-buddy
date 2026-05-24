@@ -31,8 +31,7 @@ pytest tests/smoke/ -m smoke            # real API calls (requires .env keys)
 pytest -m "not smoke"                   # explicit exclusion (same as bare pytest)
 ```
 
-86 tests total (83 unit + 3 smoke). Smoke tests are gated with `@pytest.mark.smoke`.
-113 unit tests total (+ 3 smoke). Smoke tests are gated with `@pytest.mark.smoke`.
+319 tests total (316 unit + 3 smoke). Smoke tests are gated with `@pytest.mark.smoke`.
 
 ## Two UI Modes
 
@@ -48,7 +47,7 @@ Both share the same backend modules. The interactive menu lives in `app/ui/menu.
 - Whisper transcription uses `fp16=torch.cuda.is_available()` to suppress CPU warning
 - `recommend_places()` scoring: 8-factor weighted composite in `app/reviews/scoring.py::composite_score` — quality, volume, distance, cost, recency, sentiment, audience, cuisine, aspects. Each factor is normalized to 0..1 in `app/reviews/factors.py`; weights come from named profiles in `app/reviews/profiles.py` (`balanced`/`family`/`adult`/`foodie`/`budget`/`aspect-heavy`). Final score is `Σ(w_i · f_i) × 5`. Quality factor wraps the legacy `_bayesian_score` (still exported for tests).
 - Each result carries `score`, `score_breakdown` (weighted contributions per factor, sum to final score), `score_raw` (unweighted 0..1 factor values), `audience_tag`, and `distance_km`.
-- Distance uses haversine from a region centroid: explicit `location` if provided, else `_geocode_region(region)` which returns `(center, d_half)` computed from the viewport diagonal. Falls back to 3.0 km half-life if geocode fails.
+- Distance uses haversine from a region centroid: explicit `location` if provided, else `_geocode_region(region)` which returns `(center, d_half, search_radius_m)` computed from the viewport diagonal. `search_radius_m` (half the viewport diagonal, capped at 50 km) is passed to `places_nearby()` for geographically diverse results. Falls back to 3.0 km half-life and text search if geocode fails.
 - `CLOSED_PERMANENTLY` places are dropped in `search_places`.
 - `recommend_places()` supports multi-type search via `place_types` param, deduplication, pagination, price/budget filtering, parallel detail fetching, and new params: `profile`, `cuisine`, `audience` (`"family"`/`"adult"`/`None`), `people`, `query`, `aspects`, `llm_parse`, `llm_rerank`, `llm_summarize`, `llm_aspects`, `lang`.
 - LLM features (all gated/opt-in): `app/llm/recommender.py` — `parse_query` (free-form → structured prefs), `rerank_top_k`, `summarize_pros_cons`, `extract_aspects` (cached to `cache/`), `load_aspects_cache`.
@@ -77,6 +76,6 @@ from app.llm.client import translate_to_turkish
 
 ```
 YouTube URL → download_audio → transcribe → translate_to_turkish → summarize_in_turkish
-Region      → search_places (pagination, price filter) → _deduplicate → _bayesian_score → recommend_places (multi-type, parallel details, budget)
+Region      → _geocode_region → search_places (places_nearby with viewport radius, pagination, price filter) → _deduplicate → composite_score → recommend_places (multi-type, parallel details, budget)
 All of above → generate_plan (LLM itinerary)
 ```
