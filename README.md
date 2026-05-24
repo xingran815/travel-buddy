@@ -156,7 +156,7 @@ Required for place recommendations and travel plans.
 ### macOS / Linux
 
 ```bash
-git clone https://github.com/xingran/travel-buddy.git
+git clone https://github.com/xingran815/travel-buddy.git
 cd travel-buddy
 python3 -m venv venv
 source venv/bin/activate
@@ -166,7 +166,7 @@ pip install -r requirements.txt
 ### Windows
 
 ```cmd
-git clone https://github.com/xingran/travel-buddy.git
+git clone https://github.com/xingran815/travel-buddy.git
 cd travel-buddy
 python -m venv venv
 venv\Scripts\activate
