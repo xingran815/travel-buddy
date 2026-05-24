@@ -79,8 +79,8 @@ class TestDisplay:
 
 class TestMenuSummarize:
     @patch("app.ui.menu.cleanup")
-    @patch("app.ui.menu.summarize_in_turkish", return_value="Özet.")
-    @patch("app.ui.menu.translate_to_turkish", return_value="Çeviri.")
+    @patch("app.ui.menu.summarize_text", return_value="Özet.")
+    @patch("app.ui.menu.translate_text", return_value="Çeviri.")
     @patch("app.ui.menu.transcribe", return_value={"text": "Text", "language": "en"})
     @patch("app.ui.menu.get_video_title", return_value="Test Video")
     @patch("app.ui.menu.download_audio", return_value=("/tmp/test.wav", "test123"))

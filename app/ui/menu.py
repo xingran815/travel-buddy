@@ -13,7 +13,7 @@ from app.ui.display import (
 )
 from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
-from app.llm.client import translate_to_turkish, summarize_in_turkish
+from app.llm.client import translate_text, summarize_text, LANG_NAMES
 from app.reviews.checker import recommend_places, recommend_by_categories
 from app.reviews.profiles import DEFAULT_PROFILE
 from app.planner.generator import generate_plan
@@ -43,17 +43,23 @@ def run_summarize(lang: str = "tr"):
     show_success(t("transcribe_done", lang))
     show_info(f"  ({result['language']})")
 
-    show_info(t("translating", lang))
-    turkish_text = translate_to_turkish(result["text"], result["language"])
-    show_success(t("translate_done", lang))
+    lang_name = LANG_NAMES.get(lang, "Turkish")
+    if result["language"] == lang:
+        show_info(t("skipping_translation", lang))
+        translated_text = result["text"]
+    else:
+        show_info(t("translating", lang, lang_name=lang_name))
+        translated_text = translate_text(result["text"], lang, result["language"])
+        show_success(t("translate_done", lang))
 
     show_info(t("summarizing", lang))
-    summary = summarize_in_turkish(turkish_text)
+    summary = summarize_text(translated_text, lang)
     show_success(t("summarize_done", lang))
 
     cleanup(video_id)
 
-    show_translation(turkish_text, lang)
+    if result["language"] != lang:
+        show_translation(translated_text, lang)
     show_summary(summary, lang)
 
 
@@ -197,14 +203,21 @@ def run_plan(lang: str = "tr"):
         audio_path, video_id = download_audio(url)
         show_info(t("transcribing", lang))
         result = transcribe(audio_path)
-        show_info(t("translating", lang))
-        turkish_text = translate_to_turkish(result["text"], result["language"])
+        lang_name = LANG_NAMES.get(lang, "Turkish")
+        if result["language"] == lang:
+            show_info(t("skipping_translation", lang))
+            translated_text = result["text"]
+        else:
+            show_info(t("translating", lang, lang_name=lang_name))
+            translated_text = translate_text(result["text"], lang, result["language"])
+            show_success(t("translate_done", lang))
         show_info(t("summarizing", lang))
-        youtube_summary = summarize_in_turkish(turkish_text)
+        youtube_summary = summarize_text(translated_text, lang)
         show_success(t("summarize_done", lang))
         cleanup(video_id)
 
-        show_translation(turkish_text, lang)
+        if result["language"] != lang:
+            show_translation(translated_text, lang)
         show_summary(youtube_summary, lang)
 
     place_types = _ask_place_types(lang)
@@ -267,7 +280,7 @@ def run_main_menu():
         choices = [
             "1. " + ("Summarize YouTube Video" if lang == "en" else "YouTube Videosu Özetle"),
             "2. " + ("Get Place Recommendations" if lang == "en" else "Yer Önerileri Al"),
-            "3. " + ("Create Travel Plan" if lang == "en" else "Seyahat Planı Oluştur"),
+            "3. " + ("Create Travel Plan [Beta]" if lang == "en" else "Seyahat Planı Oluştur [Beta]"),
             "4. " + ("Settings" if lang == "en" else "Ayarlar"),
             "q. " + ("Quit" if lang == "en" else "Çıkış"),
         ]

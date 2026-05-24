@@ -28,8 +28,12 @@ STRINGS = {
         "tr": "Yazıya dökme tamamlandı.",
     },
     "translating": {
-        "en": "Translating to Turkish...",
-        "tr": "Türkçeye çevriliyor...",
+        "en": "Translating to {lang_name}...",
+        "tr": "{lang_name} diline çevriliyor...",
+    },
+    "skipping_translation": {
+        "en": "Source language matches target, skipping translation.",
+        "tr": "Kaynak dil hedef dille aynı, çeviri atlanıyor.",
     },
     "translate_done": {
         "en": "Translation complete.",
@@ -56,8 +60,8 @@ STRINGS = {
         "tr": "=== Video Özeti ===",
     },
     "header_translation": {
-        "en": "=== Turkish Translation ===",
-        "tr": "=== Türkçe Çeviri ===",
+        "en": "=== {lang_name} Translation ===",
+        "tr": "=== {lang_name} Çeviri ===",
     },
     "header_recommendations": {
         "en": "=== Recommendations ===",

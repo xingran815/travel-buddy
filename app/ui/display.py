@@ -15,7 +15,9 @@ def show_welcome(lang: str = "tr"):
 
 def show_translation(text: str, lang: str = "tr"):
     from app.i18n.strings import t
-    header = t("header_translation", lang)
+    from app.llm.client import LANG_NAMES
+    lang_name = LANG_NAMES.get(lang, "Turkish")
+    header = t("header_translation", lang, lang_name=lang_name)
     console.print()
     console.print(Panel(text, title=header, border_style="green", padding=(1, 2)))
 

@@ -5,7 +5,7 @@ from app.i18n.strings import t
 from app.config import APP_LANG
 from app.youtube.downloader import download_audio, get_video_title, cleanup
 from app.youtube.transcriber import transcribe
-from app.llm.client import translate_to_turkish, summarize_in_turkish
+from app.llm.client import translate_text, summarize_text, LANG_NAMES
 from app.reviews.checker import recommend_places
 from app.reviews.categories import CATEGORIES  # pylint: disable=unused-import
 from app.reviews.checker import recommend_by_categories
@@ -48,19 +48,25 @@ def summarize(ctx, url):
     click.echo(t("transcribe_done", lang))
     click.echo(f"  ({result['language']})")
 
-    click.echo(t("translating", lang))
-    turkish_text = translate_to_turkish(result["text"], result["language"])
-    click.echo(t("translate_done", lang))
+    lang_name = LANG_NAMES.get(lang, "Turkish")
+    if result["language"] == lang:
+        click.echo(t("skipping_translation", lang))
+        translated_text = result["text"]
+    else:
+        click.echo(t("translating", lang, lang_name=lang_name))
+        translated_text = translate_text(result["text"], lang, result["language"])
+        click.echo(t("translate_done", lang))
 
     click.echo(t("summarizing", lang))
-    summary = summarize_in_turkish(turkish_text)
+    summary = summarize_text(translated_text, lang)
     click.echo(t("summarize_done", lang))
 
     cleanup(video_id)
 
-    click.echo()
-    click.echo(t("header_translation", lang))
-    click.echo(turkish_text)
+    if result["language"] != lang:
+        click.echo()
+        click.echo(t("header_translation", lang, lang_name=lang_name))
+        click.echo(translated_text)
 
     click.echo()
     click.echo(t("header_summary", lang))
@@ -252,16 +258,23 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types,
         audio_path, video_id = download_audio(url)
         click.echo(t("transcribing", lang))
         result = transcribe(audio_path)
-        click.echo(t("translating", lang))
-        turkish_text = translate_to_turkish(result["text"], result["language"])
+        lang_name = LANG_NAMES.get(lang, "Turkish")
+        if result["language"] == lang:
+            click.echo(t("skipping_translation", lang))
+            translated_text = result["text"]
+        else:
+            click.echo(t("translating", lang, lang_name=lang_name))
+            translated_text = translate_text(result["text"], lang, result["language"])
+            click.echo(t("translate_done", lang))
         click.echo(t("summarizing", lang))
-        youtube_summary = summarize_in_turkish(turkish_text)
+        youtube_summary = summarize_text(translated_text, lang)
         click.echo(t("summarize_done", lang))
         cleanup(video_id)
 
-        click.echo()
-        click.echo(t("header_translation", lang))
-        click.echo(turkish_text)
+        if result["language"] != lang:
+            click.echo()
+            click.echo(t("header_translation", lang, lang_name=lang_name))
+            click.echo(translated_text)
         click.echo()
         click.echo(t("header_summary", lang))
         click.echo(youtube_summary)

@@ -5,8 +5,8 @@ from main import cli
 
 class TestSummarizeCommand:
     @patch("main.cleanup")
-    @patch("main.summarize_in_turkish", return_value="İstanbul güzel bir şehirdir.")
-    @patch("main.translate_to_turkish", return_value="İstanbul güzel bir şehir.")
+    @patch("main.summarize_text", return_value="İstanbul güzel bir şehirdir.")
+    @patch("main.translate_text", return_value="İstanbul güzel bir şehir.")
     @patch("main.transcribe", return_value={"text": "Istanbul is beautiful.", "language": "en"})
     @patch("main.get_video_title", return_value="Istanbul Guide")
     @patch("main.download_audio", return_value=("/tmp/test.wav", "test123"))
@@ -19,18 +19,30 @@ class TestSummarizeCommand:
         mock_cleanup.assert_called_with("test123")
 
     @patch("main.cleanup")
-    @patch("main.summarize_in_turkish", return_value="Summary in Turkish.")
-    @patch("main.translate_to_turkish", return_value="Translated text.")
-    @patch("main.transcribe", return_value={"text": "Some text.", "language": "en"})
+    @patch("main.summarize_text", return_value="English summary.")
+    @patch("main.translate_text", return_value="Translated to English.")
+    @patch("main.transcribe", return_value={"text": "Türkçe metin.", "language": "tr"})
     @patch("main.get_video_title", return_value="Test Video")
     @patch("main.download_audio", return_value=("/tmp/test.wav", "test123"))
     def test_summarize_english_output(self, mock_dl, mock_title, mock_transcribe, mock_translate, mock_summarize, mock_cleanup):
         runner = CliRunner()
         result = runner.invoke(cli, ["--lang", "en", "summarize", "https://youtube.com/watch?v=test"])
         assert result.exit_code == 0
-        assert "Translated text." in result.output
-        assert "Summary in Turkish." in result.output
-        assert "Turkish Translation" in result.output
+        assert "Translated to English." in result.output
+        assert "English summary." in result.output
+        assert "English Translation" in result.output
+
+    @patch("main.cleanup")
+    @patch("main.summarize_text", return_value="Direct English summary.")
+    @patch("main.transcribe", return_value={"text": "Some text.", "language": "en"})
+    @patch("main.get_video_title", return_value="Test Video")
+    @patch("main.download_audio", return_value=("/tmp/test.wav", "test123"))
+    def test_summarize_skips_translation_when_same_lang(self, mock_dl, mock_title, mock_transcribe, mock_summarize, mock_cleanup):
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--lang", "en", "summarize", "https://youtube.com/watch?v=test"])
+        assert result.exit_code == 0
+        assert "skipping translation" in result.output.lower()
+        assert "Direct English summary." in result.output
 
 
 class TestRecommendCommand:
@@ -73,9 +85,9 @@ class TestPlanCommand:
     @patch("main.cleanup")
     @patch("main.generate_plan", return_value="Day 1: Visit museum...")
     @patch("main.recommend_places", return_value=[])
-    @patch("main.summarize_in_turkish", return_value="Video summary.")
-    @patch("main.translate_to_turkish", return_value="Translated.")
-    @patch("main.transcribe", return_value={"text": "Text", "language": "en"})
+    @patch("main.summarize_text", return_value="Video summary.")
+    @patch("main.translate_text", return_value="Translated.")
+    @patch("main.transcribe", return_value={"text": "Türkçe metin.", "language": "tr"})
     @patch("main.get_video_title", return_value="Istanbul Guide")
     @patch("main.download_audio", return_value=("/tmp/test.wav", "test123"))
     def test_plan_with_url(self, mock_dl, mock_title, mock_transcribe, mock_translate, mock_summarize, mock_rec, mock_plan, mock_cleanup):

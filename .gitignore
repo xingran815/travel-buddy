@@ -1,12 +1,38 @@
+# Environment & secrets
 .env
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Testing
 .pytest_cache/
+
+# Virtual environments
 venv/
+.venv/
+
+# Media files (downloaded by yt-dlp / Whisper)
 *.wav
 *.mp3
 *.mp4
 *.webm
+
+# Runtime data
 downloads/
 cache/
 evals/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
