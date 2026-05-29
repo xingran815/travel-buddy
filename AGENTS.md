@@ -18,8 +18,8 @@ pylint app main.py     # static analysis (config: .pylintrc)
 
 ## Coding Style
 
-- a source code file shouldn't exceed 330 lines
-- a function shouldn't exceed 50 lines
+- a source code file shouldn't exceed 330 lines of code (docstrings and comments don't count)
+- a function shouldn't exceed 50 lines of code (docstrings and comments don't count)
 
 ## Testing
 

@@ -17,108 +17,68 @@ def _ask_text(label: str, default: str = "") -> str | None:
     return value
 
 
-def _ask_cuisine(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_cuisine", lang), default="")
-    if v is None:
-        return None
-    return {"cuisine": v.strip() or None}
-
-
-def _ask_people(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_people", lang), default="2")
-    if v is None:
-        return None
-    return {"people": int(v) if v.strip() else 2}
-
-
-def _ask_budget(lang: str) -> dict | None:
-    v = _ask_text(t("enter_budget_optional", lang), default="")
-    if v is None:
-        return None
-    return {"budget": float(v) if v.strip() else None}
-
-
-def _ask_topic(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_topic", lang), default="")
-    if v is None:
-        return None
-    return {"topic": v.strip() or None}
-
-
-def _ask_vibe(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_vibe", lang), default="")
-    if v is None:
-        return None
-    return {"vibe": v.strip() or None}
-
-
-def _ask_nights(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_nights", lang), default="2")
-    if v is None:
-        return None
-    return {"nights": int(v) if v.strip() else 2}
-
-
-def _ask_rooms(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_rooms", lang), default="1")
-    if v is None:
-        return None
-    return {"rooms": int(v) if v.strip() else 1}
-
-
-def _ask_amenities(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_amenities", lang), default="")
-    if v is None:
-        return None
-    items = [s.strip() for s in (v or "").split(",") if s.strip()]
-    return {"amenities": items}
-
-
-def _ask_time_required(lang: str) -> dict | None:
-    v = _ask_text(t("prompt_time_required", lang), default="")
-    if v is None:
-        return None
+def _parse_hours(v: str) -> float | None:
     try:
-        hours = float(v) if v.strip() else None
+        return float(v) if v.strip() else None
     except ValueError:
-        hours = None
-    return {"time_hours": hours}
+        return None
+
+
+# key -> (i18n label, result key, text default, parser applied to the raw answer)
+_TEXT_PROMPTS: dict[str, tuple] = {
+    "cuisine": ("prompt_cuisine", "cuisine", "", lambda v: v.strip() or None),
+    "topic": ("prompt_topic", "topic", "", lambda v: v.strip() or None),
+    "vibe": ("prompt_vibe", "vibe", "", lambda v: v.strip() or None),
+    "people": ("prompt_people", "people", "2", lambda v: int(v) if v.strip() else 2),
+    "nights": ("prompt_nights", "nights", "2", lambda v: int(v) if v.strip() else 2),
+    "rooms": ("prompt_rooms", "rooms", "1", lambda v: int(v) if v.strip() else 1),
+    "budget": ("enter_budget_optional", "budget", "", lambda v: float(v) if v.strip() else None),
+    "amenities": ("prompt_amenities", "amenities", "", lambda v: [s.strip() for s in v.split(",") if s.strip()]),
+    "time_required": ("prompt_time_required", "time_hours", "", _parse_hours),
+}
+
+
+def _make_text_handler(label_key: str, result_key: str, default: str, parse):
+    """Build a handler that asks for text and returns ``{result_key: parse(value)}``,
+    or ``None`` if the user cancels."""
+    def handler(lang: str) -> dict | None:
+        value = _ask_text(t(label_key, lang), default=default)
+        return None if value is None else {result_key: parse(value)}
+    return handler
+
+
+_ask_vibe = _make_text_handler(*_TEXT_PROMPTS["vibe"])
+
+
+def _ask_choice(prompt_key: str, options: list[tuple[str, object]], lang: str) -> object:
+    """Ask a single-select question. ``options`` is (i18n label, value) pairs; the
+    first pair is the default value returned when the user picks it or cancels."""
+    labels = [(t(label_key, lang), value) for label_key, value in options]
+    selected = questionary.select(t(prompt_key, lang), choices=[label for label, _ in labels]).ask()
+    if selected is None:
+        return options[0][1]
+    return dict(labels).get(selected, options[0][1])
 
 
 def _ask_indoor_outdoor(lang: str) -> dict | None:
-    any_label = t("any_choice", lang)
-    indoor_label = t("indoor", lang)
-    outdoor_label = t("outdoor", lang)
-    selected = questionary.select(
-        t("prompt_indoor_outdoor", lang),
-        choices=[any_label, indoor_label, outdoor_label],
-    ).ask()
-    if selected is None or selected == any_label:
-        return {"indoor_outdoor": None}
-    if selected == indoor_label:
-        return {"indoor_outdoor": "indoor"}
-    if selected == outdoor_label:
-        return {"indoor_outdoor": "outdoor"}
-    return {"indoor_outdoor": None}
+    value = _ask_choice(
+        "prompt_indoor_outdoor",
+        [("any_choice", None), ("indoor", "indoor"), ("outdoor", "outdoor")],
+        lang,
+    )
+    return {"indoor_outdoor": value}
+
+
+def _ask_audience(lang: str) -> str | None:
+    return _ask_choice(
+        "prompt_audience",
+        [("audience_any", None), ("audience_family", "family"), ("audience_adult", "adult")],
+        lang,
+    )
 
 
 def _ask_audience_prompt(lang: str) -> dict | None:
     return {"audience": _ask_audience(lang)}
-
-
-def _ask_budget_tier(lang: str) -> dict | None:
-    any_label = t("any_choice", lang)
-    low_label = t("budget_low", lang)
-    mid_label = t("budget_mid", lang)
-    high_label = t("budget_high", lang)
-    selected = questionary.select(
-        t("prompt_budget_tier", lang),
-        choices=[any_label, low_label, mid_label, high_label],
-    ).ask()
-    if selected is None:
-        return None
-    mapping = {any_label: None, low_label: 1, mid_label: 2, high_label: 3}
-    return {"max_price": mapping.get(selected)}
 
 
 CATEGORIES_WITH_INDOOR_OUTDOOR = frozenset(
@@ -170,6 +130,9 @@ def _has_conflicts(selected: list[str], mapping: dict[str, tuple[str, object]]) 
 def _ask_category_refinement(
     category_ids: list[str], profile: str, lang: str
 ) -> dict | None:
+    """Collect shared filters for a category browse, returning a prefs dict (or None
+    if cancelled). The checkbox is re-asked once if the picks conflict (e.g. two
+    budget tiers); a second conflict aborts."""
     prefs: dict = {"people": 2}
     cat_set = set(category_ids)
 
@@ -205,19 +168,9 @@ def _ask_category_refinement(
     return prefs
 
 
-PROMPT_HANDLERS = {
-    "cuisine": _ask_cuisine,
-    "people": _ask_people,
-    "budget": _ask_budget,
-    "topic": _ask_topic,
-    "vibe": _ask_vibe,
-    "nights": _ask_nights,
-    "rooms": _ask_rooms,
-    "amenities": _ask_amenities,
-    "time_required": _ask_time_required,
-    "indoor_outdoor": _ask_indoor_outdoor,
-    "audience": _ask_audience_prompt,
-}
+PROMPT_HANDLERS = {key: _make_text_handler(*spec) for key, spec in _TEXT_PROMPTS.items()}
+PROMPT_HANDLERS["indoor_outdoor"] = _ask_indoor_outdoor
+PROMPT_HANDLERS["audience"] = _ask_audience_prompt
 
 
 def _collect_prefs(types: list[str], lang: str) -> dict | None:
@@ -244,23 +197,6 @@ def _ask_profile(lang: str) -> str | None:
     return dict(labels).get(selected)
 
 
-def _ask_audience(lang: str) -> str | None:
-    any_label = t("audience_any", lang)
-    family_label = t("audience_family", lang)
-    adult_label = t("audience_adult", lang)
-    selected = questionary.select(
-        t("prompt_audience", lang),
-        choices=[any_label, family_label, adult_label],
-    ).ask()
-    if selected is None or selected == any_label:
-        return None
-    if selected == family_label:
-        return "family"
-    if selected == adult_label:
-        return "adult"
-    return None
-
-
 PLACE_TYPE_CHOICES = [
     ("Restaurant", "restaurant"),
     ("Cafe", "cafe"),
@@ -280,10 +216,7 @@ def _localized_type_choices(lang: str):
         "Tourist Attraction": ("Tourist Attraction" if lang == "en" else "Turistik Yer"),
         "Bar": ("Bar" if lang == "en" else "Bar"),
     }
-    result = []
-    for display, value in PLACE_TYPE_CHOICES:
-        result.append((labels[display], value))
-    return result
+    return [(labels[display], value) for display, value in PLACE_TYPE_CHOICES]
 
 
 def _is_quit(answer) -> bool:

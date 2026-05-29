@@ -24,13 +24,10 @@ from app.ui.prompts import (
 )
 
 
-def run_summarize(lang: str = "tr"):
-    url = questionary.text(
-        "YouTube URL (q to go back):" if lang == "en" else "YouTube URL (geri dönmek için q):",
-    ).ask()
-    if _is_quit(url) or not url:
-        return
+def _summarize_youtube(url: str, lang: str) -> str:
+    """Download, transcribe, translate (when needed) and summarize a video.
 
+    Shows progress plus the translation/summary, returning the summary text."""
     show_info(t("downloading", lang))
     audio_path, video_id = download_audio(url)
     show_success(t("download_done", lang))
@@ -43,12 +40,11 @@ def run_summarize(lang: str = "tr"):
     show_success(t("transcribe_done", lang))
     show_info(f"  ({result['language']})")
 
-    lang_name = LANG_NAMES.get(lang, "Turkish")
     if result["language"] == lang:
         show_info(t("skipping_translation", lang))
         translated_text = result["text"]
     else:
-        show_info(t("translating", lang, lang_name=lang_name))
+        show_info(t("translating", lang, lang_name=LANG_NAMES.get(lang, "Turkish")))
         translated_text = translate_text(result["text"], lang, result["language"])
         show_success(t("translate_done", lang))
 
@@ -61,6 +57,92 @@ def run_summarize(lang: str = "tr"):
     if result["language"] != lang:
         show_translation(translated_text, lang)
     show_summary(summary, lang)
+    return summary
+
+
+def _recommend_for_types(region, place_types, prefs, profile, lang, top_n, budget_fallback=None):
+    """Run recommend_places for the chosen place types with the shared options."""
+    return recommend_places(
+        region,
+        place_type=place_types[0] if len(place_types) == 1 else "restaurant",
+        place_types=place_types,
+        top_n=top_n,
+        budget=prefs.get("budget", budget_fallback),
+        profile=profile,
+        cuisine=prefs.get("cuisine"),
+        audience=prefs.get("audience"),
+        people=prefs.get("people", 2),
+        estimate_missing_price=True,
+        llm_rerank=True,
+        llm_summarize=True,
+        lang=lang,
+        user_profile=load_profile(),
+    )
+
+
+def run_summarize(lang: str = "tr"):
+    url = questionary.text(
+        "YouTube URL (q to go back):" if lang == "en" else "YouTube URL (geri dönmek için q):",
+    ).ask()
+    if _is_quit(url) or not url:
+        return
+    _summarize_youtube(url, lang)
+
+
+def _browse_by_category(region: str, lang: str):
+    category_ids = _ask_categories(lang)
+    if not category_ids:
+        return
+    profile = _ask_profile(lang) or DEFAULT_PROFILE
+    prefs = _ask_category_refinement(category_ids, profile, lang)
+    if prefs is None:
+        return
+    top_str = questionary.select(
+        "How many per category?" if lang == "en" else "Kategori başına kaç tane?",
+        choices=["3", "5", "10"],
+    ).ask()
+    if top_str is None:
+        return
+    show_info(t("fetching_reviews", lang, region=region))
+    results_by_cat = recommend_by_categories(
+        region,
+        category_ids,
+        top_n_per=int(top_str),
+        max_price=prefs.get("max_price"),
+        profile=profile,
+        audience=prefs.get("audience"),
+        people=prefs.get("people", 2),
+        indoor_outdoor=prefs.get("indoor_outdoor"),
+        vibe=prefs.get("vibe"),
+        estimate_missing_price=True,
+        llm_rerank=True,
+        llm_summarize=True,
+        lang=lang,
+        user_profile=load_profile(),
+    )
+    total = sum(len(v) for v in results_by_cat.values())
+    show_success(t("reviews_done", lang, count=total))
+    show_categorized_recommendations(results_by_cat, lang)
+
+
+def _browse_by_type(region: str, lang: str):
+    place_types = _ask_place_types(lang)
+    if place_types is None:
+        return
+    top_str = questionary.select(
+        "How many?" if lang == "en" else "Kaç tane?",
+        choices=["3", "5", "10"],
+    ).ask()
+    if top_str is None:
+        return
+    profile = _ask_profile(lang) or DEFAULT_PROFILE
+    prefs = _collect_prefs(place_types, lang)
+    if prefs is None:
+        return
+    show_info(t("fetching_reviews", lang, region=region))
+    results = _recommend_for_types(region, place_types, prefs, profile, lang, int(top_str))
+    show_success(t("reviews_done", lang, count=len(results)))
+    show_recommendations(results, lang)
 
 
 def run_recommend(lang: str = "tr"):
@@ -78,84 +160,38 @@ def run_recommend(lang: str = "tr"):
     ).ask()
     if mode is None:
         return
-
-    count_choices = ["3", "5", "10"]
-
     if mode == by_cats_label:
-        category_ids = _ask_categories(lang)
-        if not category_ids:
-            return
-        profile = _ask_profile(lang) or DEFAULT_PROFILE
-        prefs = _ask_category_refinement(category_ids, profile, lang)
-        if prefs is None:
-            return
-        top_str = questionary.select(
-            "How many per category?" if lang == "en" else "Kategori başına kaç tane?",
-            choices=count_choices,
-        ).ask()
-        if top_str is None:
-            return
-        top_n_per = int(top_str)
-        show_info(t("fetching_reviews", lang, region=region))
-        results_by_cat = recommend_by_categories(
-            region,
-            category_ids,
-            top_n_per=top_n_per,
-            max_price=prefs.get("max_price"),
-            profile=profile,
-            audience=prefs.get("audience"),
-            people=prefs.get("people", 2),
-            indoor_outdoor=prefs.get("indoor_outdoor"),
-            vibe=prefs.get("vibe"),
-            estimate_missing_price=True,
-            llm_rerank=True,
-            llm_summarize=True,
-            lang=lang,
-            user_profile=load_profile(),
-        )
-        total = sum(len(v) for v in results_by_cat.values())
-        show_success(t("reviews_done", lang, count=total))
-        show_categorized_recommendations(results_by_cat, lang)
-        return
+        _browse_by_category(region, lang)
+    else:
+        _browse_by_type(region, lang)
 
-    place_types = _ask_place_types(lang)
-    if place_types is None:
-        return
 
-    top_str = questionary.select(
-        "How many?" if lang == "en" else "Kaç tane?",
-        choices=count_choices,
+def _ask_trip_basics(lang: str):
+    """Prompt for budget, days, and preferences; returns the trio or None if cancelled."""
+    budget_str = questionary.text(
+        "Budget (USD):" if lang == "en" else "Bütçe (USD):",
+        default="500",
     ).ask()
-    if top_str is None:
-        return
-    top_n = int(top_str)
+    if _is_quit(budget_str):
+        return None
+    budget = float(budget_str) if budget_str else 500
 
-    profile = _ask_profile(lang) or DEFAULT_PROFILE
+    days_str = questionary.text(
+        "Days:" if lang == "en" else "Gün sayısı:",
+        default="3",
+    ).ask()
+    if _is_quit(days_str):
+        return None
+    days = int(days_str) if days_str else 3
 
-    prefs = _collect_prefs(place_types, lang)
-    if prefs is None:
-        return
-
-    show_info(t("fetching_reviews", lang, region=region))
-    results = recommend_places(
-        region,
-        place_type=place_types[0] if len(place_types) == 1 else "restaurant",
-        place_types=place_types,
-        top_n=top_n,
-        budget=prefs.get("budget"),
-        profile=profile,
-        cuisine=prefs.get("cuisine"),
-        audience=prefs.get("audience"),
-        people=prefs.get("people", 2),
-        estimate_missing_price=True,
-        llm_rerank=True,
-        llm_summarize=True,
-        lang=lang,
-        user_profile=load_profile(),
-    )
-    show_success(t("reviews_done", lang, count=len(results)))
-
-    show_recommendations(results, lang)
+    preferences = questionary.text(
+        ("Preferences (comma separated, enter to skip):" if lang == "en"
+         else "Tercihler (virgülle ayırın, atlamak için Enter):"),
+        default="",
+    ).ask()
+    if _is_quit(preferences):
+        return None
+    return budget, days, preferences or ""
 
 
 def run_plan(lang: str = "tr"):
@@ -165,30 +201,10 @@ def run_plan(lang: str = "tr"):
     if _is_quit(region) or not region:
         return
 
-    budget_str = questionary.text(
-        "Budget (USD):" if lang == "en" else "Bütçe (USD):",
-        default="500",
-    ).ask()
-    if _is_quit(budget_str):
+    basics = _ask_trip_basics(lang)
+    if basics is None:
         return
-    budget = float(budget_str) if budget_str else 500
-
-    days_str = questionary.text(
-        "Days:" if lang == "en" else "Gün sayısı:",
-        default="3",
-    ).ask()
-    if _is_quit(days_str):
-        return
-    days = int(days_str) if days_str else 3
-
-    preferences = questionary.text(
-        ("Preferences (comma separated, enter to skip):" if lang == "en"
-         else "Tercihler (virgülle ayırın, atlamak için Enter):"),
-        default="",
-    ).ask()
-    if _is_quit(preferences):
-        return
-    preferences = preferences or ""
+    budget, days, preferences = basics
 
     url = questionary.text(
         "YouTube URL (enter to skip):" if lang == "en" else "YouTube URL (atlamak için Enter):",
@@ -199,26 +215,7 @@ def run_plan(lang: str = "tr"):
 
     youtube_summary = ""
     if url and url.strip():
-        show_info(t("downloading", lang))
-        audio_path, video_id = download_audio(url)
-        show_info(t("transcribing", lang))
-        result = transcribe(audio_path)
-        lang_name = LANG_NAMES.get(lang, "Turkish")
-        if result["language"] == lang:
-            show_info(t("skipping_translation", lang))
-            translated_text = result["text"]
-        else:
-            show_info(t("translating", lang, lang_name=lang_name))
-            translated_text = translate_text(result["text"], lang, result["language"])
-            show_success(t("translate_done", lang))
-        show_info(t("summarizing", lang))
-        youtube_summary = summarize_text(translated_text, lang)
-        show_success(t("summarize_done", lang))
-        cleanup(video_id)
-
-        if result["language"] != lang:
-            show_translation(translated_text, lang)
-        show_summary(youtube_summary, lang)
+        youtube_summary = _summarize_youtube(url, lang)
 
     place_types = _ask_place_types(lang)
     review_results = []
@@ -228,21 +225,8 @@ def run_plan(lang: str = "tr"):
         if prefs is None:
             return
         show_info(t("fetching_reviews", lang, region=region))
-        review_results = recommend_places(
-            region,
-            place_type=place_types[0] if len(place_types) == 1 else "restaurant",
-            place_types=place_types,
-            top_n=5,
-            budget=prefs.get("budget", budget),
-            profile=profile,
-            cuisine=prefs.get("cuisine"),
-            audience=prefs.get("audience"),
-            people=prefs.get("people", 2),
-            estimate_missing_price=True,
-            llm_rerank=True,
-            llm_summarize=True,
-            lang=lang,
-            user_profile=load_profile(),
+        review_results = _recommend_for_types(
+            region, place_types, prefs, profile, lang, top_n=5, budget_fallback=budget,
         )
         show_success(t("reviews_done", lang, count=len(review_results)))
         show_recommendations(review_results, lang)

@@ -1,42 +1,32 @@
+"""LLM recommendation helpers: query parsing, reranking, pros/cons and price-level
+estimation, and aspect tagging. Prompts live in :mod:`app.llm.prompts`; the JSON
+cache and review helpers in :mod:`app.llm.cache`."""
+
 import json
-import hashlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from app.llm.cache import (
+    format_review_excerpts,
+    load_json_cache,
+    reviews_signature,
+    save_json_cache_safe,
+)
 from app.llm.factory import get_provider
+from app.llm.prompts import (
+    ASPECT_KEYS,
+    EXTRACT_ASPECTS_SYSTEM,
+    PARSE_QUERY_SYSTEM,
+    PRICE_LEVEL_SYSTEM,
+    RERANK_PROS_CONS_SYSTEM,
+    RERANK_SYSTEM,
+    SUMMARIZE_SYSTEM,
+)
 
 CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "cache"
 ASPECTS_CACHE = CACHE_DIR / "aspects.json"
 PROS_CONS_CACHE = CACHE_DIR / "pros_cons.json"
 PRICE_LEVEL_CACHE = CACHE_DIR / "price_level.json"
-
-ASPECT_KEYS = (
-    "atmosphere", "service", "value", "cleanliness",
-    "view", "romantic", "noise", "kid_friendly", "quiet",
-)
-
-
-def _ensure_cache_dir() -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _load_json_cache(path: Path) -> dict:
-    if not path.exists():
-        return {}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-
-
-def _save_json_cache(path: Path, data: dict) -> None:
-    _ensure_cache_dir()
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-
-def _reviews_signature(reviews: list[dict]) -> str:
-    blob = "|".join(f"{r.get('rating', '')}:{(r.get('text') or '')[:60]}" for r in (reviews or [])[:5])
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
 
 def _chat_json(messages: list[dict], temperature: float = 0.1, budget=None) -> dict:
@@ -53,18 +43,13 @@ def _chat_json(messages: list[dict], temperature: float = 0.1, budget=None) -> d
 
 
 def parse_query(free_form: str, lang: str = "en", budget=None) -> dict:
+    """Parse a free-form request into structured prefs; ``{"raw": ...}`` on failure."""
     if not free_form or not free_form.strip():
         return {}
-    system = (
-        "Extract structured travel preferences from a free-form user request. "
-        "Output JSON with keys: cuisine (string or null), audience ('family'/'adult'/null), "
-        "aspects (list of short tags such as 'romantic','view','quiet','rooftop'), "
-        "near (string or null), price_level (1-4 or null). Use null when uncertain."
-    )
     user = f"Language: {lang}\nRequest: {free_form}\nReturn only JSON."
     try:
         out = _chat_json(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            [{"role": "system", "content": PARSE_QUERY_SYSTEM}, {"role": "user", "content": user}],
             temperature=0.1,
             budget=budget,
         )
@@ -110,6 +95,25 @@ def _place_summary(place: dict) -> dict:
     }
 
 
+def _rerank_payload(places, query, profile, prefs, k_out) -> dict:
+    return {
+        "query": query or "",
+        "profile": profile,
+        "prefs": prefs or {},
+        "places": [_place_summary(p) for p in places],
+        "k_out": k_out,
+    }
+
+
+def _rerank_chat(system: str, payload: dict, budget) -> dict:
+    return _chat_json(
+        [{"role": "system", "content": system},
+         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+        temperature=0.2,
+        budget=budget,
+    )
+
+
 def rerank_top_k(
     places: list[dict],
     query: str | None,
@@ -119,36 +123,12 @@ def rerank_top_k(
     lang: str = "en",
     budget=None,
 ) -> list[dict]:
+    """Reorder candidates by LLM judgment, returning the best ``k_out`` places."""
     if len(places) <= 1:
         return places[:k_out]
-    payload = {
-        "query": query or "",
-        "profile": profile,
-        "prefs": prefs or {},
-        "places": [_place_summary(p) for p in places],
-        "k_out": k_out,
-    }
-    system = (
-        "You re-rank place recommendations. Given a JSON payload with a user query, profile, "
-        "preferences, and candidate places, choose the best k_out in preferred order. Each place "
-        "carries score_breakdown, up to 3 top-rated review excerpts in good_reviews, and up to 3 "
-        "lowest-rated review excerpts in bad_reviews. Read BOTH sides: a high overall rating with "
-        "damaging bad_reviews (e.g. 'overpriced', 'dirty', 'rude staff', 'closed early') that "
-        "match the user's stated priorities should drop in your ranking. A merely-OK rating whose "
-        "bad_reviews are minor or off-topic should not. The rationale must mention the deciding "
-        "pro or con in 1 short sentence. Output JSON: "
-        "{\"order\": [{\"place_id\": str, \"rationale\": str}, ...]}. "
-        f"Reply in the user's language ({lang})."
-    )
+    payload = _rerank_payload(places, query, profile, prefs, k_out)
     try:
-        out = _chat_json(
-            [
-                {"role": "system", "content": system},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ],
-            temperature=0.2,
-            budget=budget,
-        )
+        out = _rerank_chat(RERANK_SYSTEM.replace("{lang}", lang), payload, budget)
     except Exception:
         return places[:k_out]
     return _apply_rerank_order(out.get("order") or [], places, k_out)
@@ -171,23 +151,6 @@ def _apply_rerank_order(order: list[dict], places: list[dict], k_out: int) -> li
     return reranked
 
 
-_RERANK_PROS_CONS_SYSTEM = (
-    "You re-rank place recommendations AND summarize each chosen place. Given a JSON payload "
-    "with a user query, profile, preferences, and candidate places, choose the best k_out in "
-    "preferred order. Each place carries score_breakdown, up to 3 top-rated review excerpts in "
-    "good_reviews, and up to 3 lowest-rated review excerpts in bad_reviews. Read BOTH sides: "
-    "a high overall rating with damaging bad_reviews (e.g. 'overpriced', 'dirty', 'rude staff', "
-    "'closed early') that match the user's stated priorities should drop in your ranking. "
-    "A merely-OK rating whose bad_reviews are minor or off-topic should not. "
-    "For each chosen place, also produce 2 short pros and 2 short cons (≤ 12 words each), "
-    "grounded in good_reviews and bad_reviews. The rationale must mention the deciding pro or "
-    "con in 1 short sentence. Output JSON: "
-    "{\"order\": [{\"place_id\": str, \"rationale\": str, "
-    "\"pros\": [str, str], \"cons\": [str, str]}, ...]}. "
-    "Reply in the user's language ({lang})."
-)
-
-
 def rerank_with_pros_cons(
     places: list[dict],
     query: str | None,
@@ -200,23 +163,9 @@ def rerank_with_pros_cons(
     """Rerank candidates and emit pros/cons in a single LLM call."""
     if len(places) <= 1:
         return places[:k_out]
-    payload = {
-        "query": query or "",
-        "profile": profile,
-        "prefs": prefs or {},
-        "places": [_place_summary(p) for p in places],
-        "k_out": k_out,
-    }
-    system = _RERANK_PROS_CONS_SYSTEM.replace("{lang}", lang)
+    payload = _rerank_payload(places, query, profile, prefs, k_out)
     try:
-        out = _chat_json(
-            [
-                {"role": "system", "content": system},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ],
-            temperature=0.2,
-            budget=budget,
-        )
+        out = _rerank_chat(RERANK_PROS_CONS_SYSTEM.replace("{lang}", lang), payload, budget)
     except Exception:
         return rerank_top_k(places, query, profile, prefs, k_out, lang, budget)
     order = out.get("order") or []
@@ -238,7 +187,7 @@ def _attach_and_cache_pros_cons(
 ) -> None:
     entries_by_id = {e.get("place_id"): e for e in order if isinstance(e, dict)}
     reviews_by_id = {p.get("place_id"): (p.get("reviews") or []) for p in original_places}
-    cache = _load_json_cache(PROS_CONS_CACHE)
+    cache = load_json_cache(PROS_CONS_CACHE)
     cache_dirty = False
     for place in reranked:
         pid = place.get("place_id")
@@ -252,36 +201,28 @@ def _attach_and_cache_pros_cons(
         reviews = reviews_by_id.get(pid) or []
         if not reviews:
             continue
-        key = f"{pid}:{lang}:{_reviews_signature(reviews)}"
+        key = f"{pid}:{lang}:{reviews_signature(reviews)}"
         cache[key] = {"pros": pros, "cons": cons}
         cache_dirty = True
     if cache_dirty:
-        try:
-            _save_json_cache(PROS_CONS_CACHE, cache)
-        except OSError:
-            pass
+        save_json_cache_safe(PROS_CONS_CACHE, cache)
 
 
 def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
+    """Return ``{"pros": [...], "cons": [...]}`` for a place, cached by review fingerprint."""
     reviews = place.get("reviews") or []
     if not reviews:
         return {"pros": [], "cons": []}
-    _ensure_cache_dir()
-    cache = _load_json_cache(PROS_CONS_CACHE)
+    cache = load_json_cache(PROS_CONS_CACHE)
     pid = place.get("place_id", "")
-    sig = _reviews_signature(reviews)
-    key = f"{pid}:{lang}:{sig}"
+    key = f"{pid}:{lang}:{reviews_signature(reviews)}"
     if key in cache:
         return cache[key]
-    excerpts = "\n".join(f"- ({r.get('rating', '')}/5) {(r.get('text') or '')[:240]}" for r in reviews[:5])
-    system = (
-        f"Summarize a place's user reviews into 2 short pros and 2 short cons. Reply in {lang}. "
-        "Output JSON: {\"pros\": [str, str], \"cons\": [str, str]}. Each item ≤ 12 words."
-    )
-    user = f"Place: {place.get('name', '')}\nReviews:\n{excerpts}"
+    user = f"Place: {place.get('name', '')}\nReviews:\n{format_review_excerpts(reviews)}"
     try:
         out = _chat_json(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            [{"role": "system", "content": SUMMARIZE_SYSTEM.replace("{lang}", lang)},
+             {"role": "user", "content": user}],
             temperature=0.2,
             budget=budget,
         )
@@ -289,10 +230,7 @@ def summarize_pros_cons(place: dict, lang: str = "en", budget=None) -> dict:
     except Exception:
         result = {"pros": [], "cons": []}
     cache[key] = result
-    try:
-        _save_json_cache(PROS_CONS_CACHE, cache)
-    except OSError:
-        pass
+    save_json_cache_safe(PROS_CONS_CACHE, cache)
     return result
 
 
@@ -304,27 +242,16 @@ def estimate_price_level(place: dict, budget=None) -> int | None:
     reviews = place.get("reviews") or []
     if not reviews:
         return None
-    _ensure_cache_dir()
-    cache = _load_json_cache(PRICE_LEVEL_CACHE)
+    cache = load_json_cache(PRICE_LEVEL_CACHE)
     pid = place.get("place_id", "")
-    sig = _reviews_signature(reviews)
-    key = f"{pid}:{sig}"
+    key = f"{pid}:{reviews_signature(reviews)}"
     if key in cache:
         cached = cache[key]
         return cached.get("level") if isinstance(cached, dict) else None
-    excerpts = "\n".join(
-        f"- ({r.get('rating', '')}/5) {(r.get('text') or '')[:240]}" for r in reviews[:5]
-    )
-    system = (
-        "Estimate Google Places price_level for a place using its user reviews. "
-        "Scale: 1 = cheap, 2 = moderate, 3 = expensive, 4 = very expensive. "
-        "Output JSON: {\"level\": int (1-4) or null, \"confidence\": \"low\"|\"med\"|\"high\"}. "
-        "Return null level when reviews don't mention price or value."
-    )
-    user = f"Place: {place.get('name', '')}\nReviews:\n{excerpts}"
+    user = f"Place: {place.get('name', '')}\nReviews:\n{format_review_excerpts(reviews)}"
     try:
         out = _chat_json(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            [{"role": "system", "content": PRICE_LEVEL_SYSTEM}, {"role": "user", "content": user}],
             temperature=0.1,
             budget=budget,
         )
@@ -336,71 +263,51 @@ def estimate_price_level(place: dict, budget=None) -> int | None:
     else:
         result = {"level": None, "confidence": "low"}
     cache[key] = result
-    try:
-        _save_json_cache(PRICE_LEVEL_CACHE, cache)
-    except OSError:
-        pass
+    save_json_cache_safe(PRICE_LEVEL_CACHE, cache)
     return result["level"]
 
 
-def estimate_price_levels_batch(
-    places: list[dict],
-    budget=None,
-    max_workers: int = 5,
-) -> dict[str, int | None]:
-    out: dict[str, int | None] = {}
+def _run_per_place(places: list[dict], task, max_workers: int = 5) -> dict:
+    """Run ``task(place)`` over places concurrently, keyed by place_id."""
+    out: dict = {}
     if not places:
         return out
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {
-            ex.submit(estimate_price_level, p, budget): p.get("place_id", "")
-            for p in places
-        }
+        futures = {ex.submit(task, p): p.get("place_id", "") for p in places}
         for fut in as_completed(futures):
             out[futures[fut]] = fut.result()
     return out
 
 
-def summarize_pros_cons_batch(
-    places: list[dict],
-    lang: str = "en",
-    budget=None,
-    max_workers: int = 5,
-) -> dict[str, dict]:
-    out: dict[str, dict] = {}
-    if not places:
-        return out
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(summarize_pros_cons, p, lang, budget): p.get("place_id", "") for p in places}
-        for fut in as_completed(futures):
-            out[futures[fut]] = fut.result()
-    return out
+def estimate_price_levels_batch(places, budget=None, max_workers: int = 5) -> dict[str, int | None]:
+    """Estimate price levels for many places concurrently, keyed by place_id."""
+    return _run_per_place(places, lambda p: estimate_price_level(p, budget), max_workers)
+
+
+def summarize_pros_cons_batch(places, lang: str = "en", budget=None, max_workers: int = 5) -> dict[str, dict]:
+    """Summarize pros/cons for many places concurrently, keyed by place_id."""
+    return _run_per_place(places, lambda p: summarize_pros_cons(p, lang, budget), max_workers)
 
 
 def extract_aspects(place: dict, budget=None) -> dict[str, float]:
+    """Score a place across ASPECT_KEYS (0..1), cached until its review count drifts >10%."""
     pid = place.get("place_id", "")
     if not pid:
         return {}
-    _ensure_cache_dir()
-    cache = _load_json_cache(ASPECTS_CACHE)
+    cache = load_json_cache(ASPECTS_CACHE)
     cached = cache.get(pid)
     n_now = place.get("user_ratings_total") or 0
     if cached:
+        # Reuse the cached scores unless the review count moved by >10%.
         n_prev = cached.get("_n", 0)
         if n_prev and abs(n_now - n_prev) / max(n_prev, 1) < 0.10:
             return {k: v for k, v in cached.items() if not k.startswith("_")}
 
-    reviews = (place.get("reviews") or [])[:5]
-    excerpts = "\n".join(f"- {(r.get('text') or '')[:200]}" for r in reviews)
-    system = (
-        "Tag a place with aspect scores 0..1 based on name, types, and review excerpts. "
-        f"Aspects to score: {', '.join(ASPECT_KEYS)}. Output JSON: a flat object mapping aspect "
-        "→ float in [0, 1]. Unknown aspects: 0.5."
-    )
+    excerpts = format_review_excerpts(place.get("reviews") or [], maxlen=200, with_rating=False)
     user = f"Name: {place.get('name', '')}\nTypes: {place.get('types', [])}\nReviews:\n{excerpts or '(none)'}"
     try:
         out = _chat_json(
-            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            [{"role": "system", "content": EXTRACT_ASPECTS_SYSTEM}, {"role": "user", "content": user}],
             temperature=0.1,
             budget=budget,
         )
@@ -409,13 +316,11 @@ def extract_aspects(place: dict, budget=None) -> dict[str, float]:
         result = {}
     if result:
         cache[pid] = {**result, "_n": n_now}
-        try:
-            _save_json_cache(ASPECTS_CACHE, cache)
-        except OSError:
-            pass
+        save_json_cache_safe(ASPECTS_CACHE, cache)
     return result
 
 
 def load_aspects_cache() -> dict[str, dict[str, float]]:
-    raw = _load_json_cache(ASPECTS_CACHE)
+    """Load all cached aspect scores, stripping bookkeeping keys (``_n``)."""
+    raw = load_json_cache(ASPECTS_CACHE)
     return {pid: {k: v for k, v in vals.items() if not k.startswith("_")} for pid, vals in raw.items()}

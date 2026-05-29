@@ -1,3 +1,6 @@
+"""Orchestrates the place-recommendation pipeline:
+parse query → locate → search → score → fetch details → LLM rerank/summarize."""
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 
@@ -14,8 +17,6 @@ from app.reviews.search import (
     search_places, _deduplicate, _geocode_region, _budget_to_max_price,
     _fetch_details_batch, get_client, DEFAULT_D_HALF_KM, _make_search_grid,
 )
-
-
 
 
 def recommend_places(
@@ -46,18 +47,19 @@ def recommend_places(
     lang: str = "en",
     user_profile=None,
 ) -> list[dict]:
+    """Return the top-N recommended places for a region.
+
+    Runs the full pipeline: optionally LLM-parse the free-form ``query``, geocode
+    the region into search points, search each place type, score and rank the
+    candidates, fetch details, and optionally LLM-rerank/summarize the result.
+    """
     parsed_prefs: dict = {}
     if llm_parse and query:
-        from app.llm.recommender import parse_query
-        parsed_prefs = parse_query(query, lang=lang) or {}
-        if not cuisine and parsed_prefs.get("cuisine"):
-            cuisine = parsed_prefs["cuisine"]
-        if not audience and parsed_prefs.get("audience"):
-            audience = parsed_prefs["audience"]
-        if not aspects and parsed_prefs.get("aspects"):
-            aspects = parsed_prefs["aspects"]
+        cuisine, audience, aspects, parsed_prefs = _merge_parsed_prefs(
+            query, lang, cuisine, audience, aspects,
+        )
 
-    types = place_types or [place_type]
+    search_types = place_types or [place_type]
     if budget is not None and max_price is None:
         max_price = _budget_to_max_price(budget)
 
@@ -67,41 +69,24 @@ def recommend_places(
     t_total = time.perf_counter()
 
     t0 = time.perf_counter()
-    if location is not None:
-        center = location
-        d_half = DEFAULT_D_HALF_KM
-        search_points = [(location, radius)] if radius else []
-    else:
-        center, d_half, search_radius_m = _geocode_region(region)
-        if center is not None and search_radius_m is not None:
-            search_points = _make_search_grid(center, search_radius_m)
-        else:
-            search_points = []
+    center, d_half, search_points = _resolve_search_points(region, location, radius)
     timings["geocode"] = time.perf_counter() - t0
 
     t0 = time.perf_counter()
     all_places = _search_all_types(
-        region, types, max_pages=max_pages, min_price=min_price,
+        region, search_types, max_pages=max_pages, min_price=min_price,
         max_price=max_price, search_points=search_points,
     )
     timings["search"] = time.perf_counter() - t0
 
     all_places = _deduplicate(all_places)
-
     if indoor_outdoor:
         all_places = [
             p for p in all_places
             if factors.infer_indoor_outdoor(p.get("types")) in (indoor_outdoor, None)
         ]
     weights = get_profile(profile, has_cuisine=bool(cuisine), has_audience=bool(audience))
-
-    aspects_cache: dict[str, dict[str, float]] = {}
-    if aspects:
-        try:
-            from app.llm.recommender import load_aspects_cache
-            aspects_cache = load_aspects_cache()
-        except Exception:
-            aspects_cache = {}
+    aspects_cache = _load_aspects_cache(aspects)
 
     t0 = time.perf_counter()
     scored = _score_all(
@@ -114,31 +99,22 @@ def recommend_places(
     k_in = max(top_n, top_n + 5) if llm_rerank else top_n
     top = scored[:k_in]
 
-    if not include_details:
+    def emit(n_details):
         _emit_timing(
-            timings, total=time.perf_counter() - t_total,
-            n_types=len(types), n_details=0,
-            cache_hits=client.hits - hits_before,
+            timings, total=time.perf_counter() - t_total, n_types=len(search_types),
+            n_details=n_details, cache_hits=client.hits - hits_before,
             cache_misses=client.misses - misses_before,
         )
+
+    if not include_details:
+        emit(0)
         return top[:top_n]
 
     place_ids = [t["place_id"] for t in top]
     t0 = time.perf_counter()
     details_map = _fetch_details_batch(place_ids)
     timings["details"] = time.perf_counter() - t0
-
-    results = []
-    for t in top:
-        detail = details_map.get(t["place_id"], {}) or {}
-        merged = {**t, **{k: v for k, v in detail.items() if v not in (None, "", [], {})}}
-        merged["score"] = t["score"]
-        merged["score_breakdown"] = t["score_breakdown"]
-        merged["score_raw"] = t["score_raw"]
-        merged["audience_tag"] = t["audience_tag"]
-        merged["distance_km"] = t["distance_km"]
-        merged["d_half_km"] = t["d_half_km"]
-        results.append(merged)
+    results = _merge_details(top, details_map)
 
     t0 = time.perf_counter()
     if estimate_missing_price and budget is not None:
@@ -147,12 +123,80 @@ def recommend_places(
             audience=audience, budget=budget, people=people, d_half=d_half,
             aspects=aspects, aspects_cache=aspects_cache, user_profile=user_profile,
         )
-
     if llm_aspects and aspects:
         from app.llm.recommender import extract_aspects
         for p in results:
             extract_aspects(p)
+    results = _apply_llm_rerank_and_summary(
+        results, query=query, profile=profile, cuisine=cuisine, audience=audience,
+        people=people, budget=budget, aspects=aspects, indoor_outdoor=indoor_outdoor,
+        vibe=vibe, parsed_prefs=parsed_prefs, llm_rerank=llm_rerank,
+        llm_summarize=llm_summarize, top_n=top_n, lang=lang,
+    )
+    timings["llm"] = time.perf_counter() - t0
 
+    emit(len(place_ids))
+    return results
+
+
+def _merge_parsed_prefs(query, lang, cuisine, audience, aspects):
+    """LLM-parse the query and backfill blank cuisine/audience/aspects.
+
+    Returns ``(cuisine, audience, aspects, parsed_prefs)``."""
+    from app.llm.recommender import parse_query
+    parsed_prefs = parse_query(query, lang=lang) or {}
+    if not cuisine and parsed_prefs.get("cuisine"):
+        cuisine = parsed_prefs["cuisine"]
+    if not audience and parsed_prefs.get("audience"):
+        audience = parsed_prefs["audience"]
+    if not aspects and parsed_prefs.get("aspects"):
+        aspects = parsed_prefs["aspects"]
+    return cuisine, audience, aspects, parsed_prefs
+
+
+def _resolve_search_points(region, location, radius):
+    """Resolve where to search, returning ``(center, d_half, search_points)``.
+
+    Uses an explicit ``location`` if given, otherwise geocodes ``region`` into a
+    grid of ``(point, radius)`` probes for geographic diversity."""
+    if location is not None:
+        search_points = [(location, radius)] if radius else []
+        return location, DEFAULT_D_HALF_KM, search_points
+    center, d_half, search_radius_m = _geocode_region(region)
+    if center is not None and search_radius_m is not None:
+        return center, d_half, _make_search_grid(center, search_radius_m)
+    return center, d_half, []
+
+
+def _load_aspects_cache(aspects):
+    """Load the cached aspect scores when aspects are requested, else ``{}``."""
+    if not aspects:
+        return {}
+    try:
+        from app.llm.recommender import load_aspects_cache
+        return load_aspects_cache()
+    except Exception:
+        return {}
+
+
+def _merge_details(top, details_map):
+    """Overlay fetched detail fields onto each scored place, keeping score metadata."""
+    score_keys = ("score", "score_breakdown", "score_raw", "audience_tag", "distance_km", "d_half_km")
+    results = []
+    for t in top:
+        detail = details_map.get(t["place_id"], {}) or {}
+        merged = {**t, **{k: v for k, v in detail.items() if v not in (None, "", [], {})}}
+        for key in score_keys:
+            merged[key] = t[key]
+        results.append(merged)
+    return results
+
+
+def _apply_llm_rerank_and_summary(
+    results, *, query, profile, cuisine, audience, people, budget, aspects,
+    indoor_outdoor, vibe, parsed_prefs, llm_rerank, llm_summarize, top_n, lang,
+):
+    """Apply LLM reranking and/or pros/cons summaries, returning the final list."""
     if llm_rerank and len(results) > 1:
         prefs = {
             "cuisine": cuisine,
@@ -166,32 +210,23 @@ def recommend_places(
         }
         if llm_summarize:
             from app.llm.recommender import rerank_with_pros_cons
-            results = rerank_with_pros_cons(
+            return rerank_with_pros_cons(
                 results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang,
             )
-        else:
-            from app.llm.recommender import rerank_top_k
-            results = rerank_top_k(
-                results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang,
-            )
-    else:
-        results = results[:top_n]
-        if llm_summarize and results:
-            from app.llm.recommender import summarize_pros_cons_batch
-            summaries = summarize_pros_cons_batch(results, lang=lang)
-            for p in results:
-                s = summaries.get(p.get("place_id", ""))
-                if s:
-                    p["pros"] = s.get("pros", [])
-                    p["cons"] = s.get("cons", [])
-    timings["llm"] = time.perf_counter() - t0
+        from app.llm.recommender import rerank_top_k
+        return rerank_top_k(
+            results, query=query, profile=profile, prefs=prefs, k_out=top_n, lang=lang,
+        )
 
-    _emit_timing(
-        timings, total=time.perf_counter() - t_total,
-        n_types=len(types), n_details=len(place_ids),
-        cache_hits=client.hits - hits_before,
-        cache_misses=client.misses - misses_before,
-    )
+    results = results[:top_n]
+    if llm_summarize and results:
+        from app.llm.recommender import summarize_pros_cons_batch
+        summaries = summarize_pros_cons_batch(results, lang=lang)
+        for p in results:
+            s = summaries.get(p.get("place_id", ""))
+            if s:
+                p["pros"] = s.get("pros", [])
+                p["cons"] = s.get("cons", [])
     return results
 
 
@@ -263,6 +298,10 @@ def recommend_by_categories(
     top_n_per: int = 5,
     **shared_kwargs,
 ) -> dict[str, list[dict]]:
+    """Recommend places for each category id, returning ``{category_id: [places]}``.
+
+    ``category_ids`` drives type selection, so ``place_type``/``place_types``/``top_n``
+    may not be passed through ``shared_kwargs``."""
     if not category_ids:
         return {}
     # Disallow conflicting per-category args
