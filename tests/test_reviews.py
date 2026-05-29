@@ -1,3 +1,5 @@
+"""Tests for place search, detail fetching, deduplication, price filtering, and the recommendation pipeline."""
+
 from unittest.mock import patch, MagicMock
 import pytest
 from app.reviews.checker import recommend_places

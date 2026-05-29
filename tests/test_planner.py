@@ -1,3 +1,5 @@
+"""Tests for itinerary generation, including review/summary inclusion and budget/day handling."""
+
 from unittest.mock import patch, MagicMock
 
 from app.llm.base import LLMResult

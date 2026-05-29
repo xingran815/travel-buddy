@@ -96,3 +96,7 @@ YouTube URL → download_audio → transcribe → translate_to_turkish → summa
 Region      → _geocode_region → search_places (places_nearby with viewport radius, pagination, price filter) → _deduplicate → composite_score → recommend_places (multi-type, parallel details, budget)
 All of above → generate_plan (LLM itinerary)
 ```
+
+See [design/recommendation-workflow.md](design/recommendation-workflow.md) for a
+full prose walkthrough of the recommendation pipeline (triggers, geocoding,
+scoring factors, LLM stages, and output shape).

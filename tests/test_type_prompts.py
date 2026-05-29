@@ -1,3 +1,5 @@
+"""Tests for the place-type-to-prompt mapping and prompt merging across multiple types."""
+
 from app.ui.type_prompts import prompts_for_types, PROMPTS_BY_TYPE, DEFAULT_PROMPTS
 
 

@@ -1,3 +1,12 @@
+"""CLI runner for offline recommendation-quality evaluation.
+
+Two modes, both driven by the golden datasets under ``tests/golden/``:
+``run_golden`` scores results against hand-curated expected lists
+(precision/recall/NDCG), while ``run_judge`` uses an LLM-as-judge to rate result
+lists and can diff a profile against a baseline. Run via
+``python -m app.eval [--judge] [--city ...]``; reports are written under ``evals/``.
+"""
+
 import argparse
 import json
 import sys
@@ -14,6 +23,7 @@ EVALS_DIR = Path(__file__).resolve().parent.parent.parent / "evals"
 
 
 def _expected_from_query(q: dict) -> list[str]:
+    """Return a query's expected-results list, trying the widest top-N key first."""
     for k in ("expected_top_15", "expected_top_10", "expected_top_5", "expected"):
         if k in q:
             return q[k]
@@ -21,6 +31,11 @@ def _expected_from_query(q: dict) -> list[str]:
 
 
 def run_golden(city_filter: str | None = None, top_n: int = 10, profile_override: str | None = None) -> dict:
+    """Score recommendations against the golden lists and write a JSON report.
+
+    Runs every golden query (optionally filtered by ``city_filter``), computes
+    precision/recall/NDCG via ``evaluate_query``, prints each row, and returns the
+    aggregated summary."""
     files = sorted(GOLDEN_DIR.glob("*.json"))
     if not files:
         print(f"No golden files in {GOLDEN_DIR}", file=sys.stderr)
@@ -65,6 +80,7 @@ def run_golden(city_filter: str | None = None, top_n: int = 10, profile_override
 
 
 def _print_row(row: dict) -> None:
+    """Print one golden-eval row (metrics, plus missed/extra samples)."""
     print(
         f"\n[{row['region']}] {row['place_type']} · profile={row['profile']}: "
         f"precision@5={row.get('precision@5', '-')}, recall={row.get('recall', '-')}, "
@@ -82,6 +98,9 @@ def run_judge(
     profile_override: str | None = None,
     baseline: str | None = None,
 ) -> dict:
+    """LLM-as-judge evaluation, optionally diffing each profile against a baseline.
+
+    Writes a JSONL report and prints token-budget usage; returns ``{"runs": [...]}``."""
     from app.eval.llm_judge import judge
     budget = TokenBudget()
     files = sorted(GOLDEN_DIR.glob("*.json"))
@@ -136,6 +155,7 @@ def run_judge(
 
 
 def _print_judge_row(row: dict) -> None:
+    """Print one judge row (per-axis scores, optional baseline delta, rationale)."""
     v = row["verdict"]
     print(
         f"\n[{row['region']}] {row['place_type']} · profile={row['profile']}: "
@@ -150,6 +170,7 @@ def _print_judge_row(row: dict) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse CLI arguments and dispatch to ``run_judge`` or ``run_golden``."""
     p = argparse.ArgumentParser(prog="app.eval.run", description="Evaluate recommendation quality")
     p.add_argument("--city", default=None, help="Filter golden files by region substring (e.g. 'istanbul')")
     p.add_argument("--top-n", type=int, default=10)

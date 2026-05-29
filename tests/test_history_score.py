@@ -1,3 +1,5 @@
+"""Tests for the history scoring factor: like/dislike weighting, time decay, and compacted entries."""
+
 from app.profile.history import CompactedEntry
 from app.profile.store import UserProfile
 from app.reviews.factors import history_score

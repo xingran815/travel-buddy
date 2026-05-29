@@ -1,3 +1,5 @@
+"""Tests for the SQLite places cache: key generation, TTL expiry, and the CachedGmaps wrapper."""
+
 from unittest.mock import MagicMock
 
 import pytest

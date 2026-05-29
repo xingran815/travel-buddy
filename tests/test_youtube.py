@@ -1,3 +1,5 @@
+"""Tests for YouTube audio download, title fetching, transcription, and cleanup."""
+
 from unittest.mock import patch, MagicMock
 import os
 import pytest

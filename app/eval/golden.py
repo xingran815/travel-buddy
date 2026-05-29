@@ -1,3 +1,12 @@
+"""Golden-list evaluation: fuzzy name matching and retrieval metrics.
+
+Loads curated expected-result lists and scores a recommendation run against
+them with precision@k, recall, and NDCG@k. Because place names vary across
+sources and languages, matching is fuzzy: names are normalised (Turkish letters
+folded, diacritics stripped) and compared by equality, containment, or token
+overlap.
+"""
+
 import json
 import math
 import re
@@ -11,6 +20,7 @@ _TURKISH_FOLD = str.maketrans({
 
 
 def normalize_name(name: str) -> str:
+    """Canonicalize a place name for comparison (fold Turkish, strip accents/punct, lowercase)."""
     if not name:
         return ""
     s = name.translate(_TURKISH_FOLD)
@@ -23,6 +33,7 @@ def normalize_name(name: str) -> str:
 
 
 def name_matches(a: str, b: str) -> bool:
+    """Fuzzy-match two place names: exact, substring, or ≥60% token overlap."""
     na = normalize_name(a)
     nb = normalize_name(b)
     if not na or not nb:
@@ -41,12 +52,14 @@ def name_matches(a: str, b: str) -> bool:
 
 
 def load_golden(path: str | Path) -> dict:
+    """Load a golden dataset JSON file."""
     p = Path(path)
     with p.open(encoding="utf-8") as f:
         return json.load(f)
 
 
 def evaluate_query(expected: list[str], results: list[dict], k: int = 5) -> dict:
+    """Compute precision@k, recall, NDCG@k, and missed/extra lists for one query."""
     result_names = [r.get("name", "") for r in results]
     top_k = result_names[:k]
 
@@ -71,6 +84,7 @@ def evaluate_query(expected: list[str], results: list[dict], k: int = 5) -> dict
 
 
 def _ndcg(result_names: list[str], expected: list[str], k: int = 5) -> float:
+    """Binary-relevance NDCG@k (1 if a result matches any expected name, else 0)."""
     dcg = 0.0
     for i, name in enumerate(result_names[:k]):
         rel = 1.0 if any(name_matches(name, e) for e in expected) else 0.0

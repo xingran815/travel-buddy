@@ -1,3 +1,5 @@
+"""Tests for the offline evaluation metrics: name matching, precision/recall, NDCG, and token budgeting."""
+
 import json
 from pathlib import Path
 from unittest.mock import patch, MagicMock

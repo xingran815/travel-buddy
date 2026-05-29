@@ -1,3 +1,5 @@
+"""Tests for the first-run setup wizard: missing-key detection, .env writing, and TTY gating."""
+
 from pathlib import Path
 from unittest.mock import patch
 

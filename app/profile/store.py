@@ -1,3 +1,13 @@
+"""User profile: persisted preferences and the feedback history behind scoring.
+
+The profile is a single JSON file under ``$XDG_CONFIG_HOME`` holding stated
+preferences (cuisines, budget, language, dislikes) and a log of feedback events.
+``factors.history_score`` reads this log via ``UserProfile.summary_for`` to
+personalise rankings. To keep the file bounded, events beyond
+``DEFAULT_KEEP_RECENT`` are *compacted* into per-place tallies rather than
+discarded, so old signal still counts.
+"""
+
 import json
 import os
 import time
@@ -15,12 +25,15 @@ DEFAULT_KEEP_RECENT = 1000
 
 
 def default_profile_path() -> Path:
+    """Return the profile path under ``$XDG_CONFIG_HOME`` (``~/.config`` fallback)."""
     xdg = os.getenv("XDG_CONFIG_HOME") or str(Path.home() / ".config")
     return Path(xdg) / "youtube_summary" / "profile.json"
 
 
 @dataclass
 class UserProfile:
+    """Stated preferences plus the feedback history used for personalisation."""
+
     cuisine_prefs: list[str] = field(default_factory=list)
     default_budget: float | None = None
     default_language: str = "en"
@@ -29,6 +42,11 @@ class UserProfile:
     compacted: dict[str, CompactedEntry] = field(default_factory=dict)
 
     def summary_for(self, place_id: str) -> PlaceSummary | None:
+        """Aggregate live events and compacted tallies for one place.
+
+        Returns a ``PlaceSummary`` combining recent ``(action, ts, rating)``
+        events with any compacted counts, or ``None`` when the user has no
+        record for ``place_id``."""
         if not place_id:
             return None
         events = [
@@ -55,6 +73,9 @@ class UserProfile:
         now: float | None = None,
         keep_recent: int = DEFAULT_KEEP_RECENT,
     ) -> None:
+        """Append a feedback event, compacting old history if it grew too large.
+
+        Raises ``ValueError`` for an action outside ``ACTIONS``."""
         if action not in ACTIONS:
             raise ValueError(f"Unknown action {action!r}; must be one of {ACTIONS}")
         ts = now if now is not None else time.time()
@@ -62,6 +83,7 @@ class UserProfile:
         self._compact_if_needed(keep_recent=keep_recent)
 
     def _compact_if_needed(self, keep_recent: int = DEFAULT_KEEP_RECENT) -> None:
+        """Fold the oldest events past ``keep_recent`` into per-place tallies."""
         if len(self.history) <= keep_recent:
             return
         excess = len(self.history) - keep_recent
@@ -79,6 +101,7 @@ class UserProfile:
 
 
 def load_profile(path: str | Path | None = None) -> UserProfile:
+    """Load the profile JSON, returning a fresh empty profile if absent or corrupt."""
     p = Path(path) if path is not None else default_profile_path()
     if not p.exists():
         return UserProfile()
@@ -104,6 +127,7 @@ def load_profile(path: str | Path | None = None) -> UserProfile:
 
 
 def save_profile(profile: UserProfile, path: str | Path | None = None) -> Path:
+    """Atomically write the profile to JSON (temp file + replace); return the path."""
     p = Path(path) if path is not None else default_profile_path()
     p.parent.mkdir(parents=True, exist_ok=True)
     payload = {

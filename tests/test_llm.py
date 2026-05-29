@@ -1,3 +1,5 @@
+"""Tests for the high-level LLM client: translation and summarization prompt building and output handling."""
+
 from unittest.mock import patch, MagicMock
 
 from app.llm.base import LLMResult

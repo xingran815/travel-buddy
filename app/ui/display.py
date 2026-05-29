@@ -1,3 +1,10 @@
+"""Rich-based rendering of CLI output: panels, recommendation tables, plans.
+
+All user-facing formatting for the interactive menu lives here; strings are
+localized through ``app.i18n.strings.t``. Functions print directly to a shared
+``rich`` console and return nothing.
+"""
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -9,11 +16,13 @@ console = Console()
 
 
 def show_welcome(lang: str = "tr"):
+    """Print the welcome banner."""
     title = "🌍 Travel Recommender" if lang == "en" else "🌍 Seyahat Öneri"
     console.print(Panel(title, style="bold cyan", padding=(1, 2)))
 
 
 def show_translation(text: str, lang: str = "tr"):
+    """Render translated text in a titled panel."""
     from app.i18n.strings import t
     from app.llm.client import LANG_NAMES
     lang_name = LANG_NAMES.get(lang, "Turkish")
@@ -23,6 +32,7 @@ def show_translation(text: str, lang: str = "tr"):
 
 
 def show_summary(text: str, lang: str = "tr"):
+    """Render a Markdown summary in a titled panel."""
     from app.i18n.strings import t
     header = t("header_summary", lang)
     console.print()
@@ -30,6 +40,10 @@ def show_summary(text: str, lang: str = "tr"):
 
 
 def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:
+    """Render the score breakdown as percent-of-total contributions, largest first.
+
+    Unlike the CLI helper of the same name, this normalises to percentages and
+    drops factors contributing under 1%, for a compact at-a-glance view."""
     from app.i18n.strings import t
     total = sum(breakdown.values())
     if total <= 0:
@@ -48,6 +62,9 @@ def _format_breakdown(breakdown: dict[str, float], lang: str) -> str:
 
 
 def show_recommendations(places: list[dict], lang: str = "tr"):
+    """Render ranked places as a table plus per-place breakdown, rationale, pros/cons.
+
+    Falls back to a few raw review excerpts only when no LLM pros/cons exist."""
     from app.i18n.strings import t
     header = t("header_recommendations", lang)
 
@@ -116,6 +133,7 @@ def show_recommendations(places: list[dict], lang: str = "tr"):
 
 
 def show_categorized_recommendations(results_by_category: dict[str, list[dict]], lang: str = "tr"):
+    """Render each category as a labelled section of recommendation tables."""
     from app.i18n.strings import t
     for cat_id, places in results_by_category.items():
         label = t(f"category_{cat_id}", lang)
@@ -128,6 +146,7 @@ def show_categorized_recommendations(results_by_category: dict[str, list[dict]],
 
 
 def show_plan(plan_text: str, lang: str = "tr"):
+    """Render the generated itinerary (Markdown) in a titled panel."""
     from app.i18n.strings import t
     header = t("header_plan", lang)
     console.print()
@@ -135,12 +154,15 @@ def show_plan(plan_text: str, lang: str = "tr"):
 
 
 def show_error(message: str):
+    """Print an error message in red."""
     console.print(f"[bold red]✗ {message}[/bold red]")
 
 
 def show_info(message: str):
+    """Print a dimmed informational message."""
     console.print(f"[dim]{message}[/dim]")
 
 
 def show_success(message: str):
+    """Print a success message in green."""
     console.print(f"[bold green]✓ {message}[/bold green]")

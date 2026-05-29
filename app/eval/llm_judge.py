@@ -1,9 +1,17 @@
+"""LLM-as-judge: have the model rate a recommendation list on four axes.
+
+Used by the evaluation runner as a reference-free alternative to golden lists —
+the model scores relevance, diversity, coverage, and freshness (1–10) and an
+overall average, which lets profiles be compared without curated expected sets.
+"""
+
 import json
 
 from app.llm.factory import get_provider
 
 
 def _place_brief(p: dict) -> dict:
+    """Reduce a place to the compact fields shown to the judge (with 2 review excerpts)."""
     reviews = (p.get("reviews") or [])[:2]
     return {
         "name": p.get("name", ""),
@@ -18,6 +26,7 @@ def _place_brief(p: dict) -> dict:
 
 
 def judge(query: dict, results: list[dict], lang: str = "en", budget=None) -> dict:
+    """Score a result list via the LLM; return a verdict dict (zeros on failure)."""
     payload = {
         "query": query,
         "n_results": len(results),
@@ -52,6 +61,10 @@ def judge(query: dict, results: list[dict], lang: str = "en", budget=None) -> di
 
 
 def _coerce_verdict(raw: dict) -> dict:
+    """Clamp/coerce a raw LLM verdict into validated 0–10 axes and an overall.
+
+    Missing or malformed axes default to mid-scale; ``overall`` is recomputed as
+    the axis average when the model omits it."""
     def _int(v, default=5):
         try:
             return max(0, min(10, int(round(float(v)))))

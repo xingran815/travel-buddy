@@ -1,3 +1,15 @@
+"""Command-line entry point wiring the four user-facing commands.
+
+Defines the Click app with ``summarize`` (YouTube → translated travel summary),
+``recommend`` (ranked places for a region), ``plan`` (a multi-day itinerary that
+can fold in a video summary), and ``feedback`` (record a like/dislike/visit that
+feeds the history scoring factor). Running with no subcommand launches the
+interactive menu in ``app/ui/menu.py``. The ``--llm-*`` flags on ``recommend``/
+``plan`` toggle the optional LLM stages of the pipeline (query parsing,
+reranking, pros/cons summaries, aspect tagging); see
+``design/recommendation-workflow.md`` for the full flow.
+"""
+
 import os
 
 import click
@@ -20,6 +32,7 @@ from app.cli.helpers import _parse_types, _parse_location, _print_place
 @click.option("--lang", default=APP_LANG, type=click.Choice(["en", "tr"]), help="Interface language")
 @click.pass_context
 def cli(ctx, lang):
+    """Top-level CLI group; stores ``--lang`` and opens the menu if no subcommand."""
     ctx.ensure_object(dict)
     ctx.obj["lang"] = lang
     if ctx.invoked_subcommand is None:
@@ -31,6 +44,7 @@ def cli(ctx, lang):
 @click.argument("url")
 @click.pass_context
 def summarize(ctx, url):
+    """Download a YouTube video, transcribe it, then translate and summarize the audio."""
     lang = ctx.obj["lang"]
     if missing_keys("llm") and run_wizard("llm"):
         return
@@ -120,6 +134,11 @@ def recommend(ctx, region, place_type, types, categories, top, max_pages,
               profile, cuisine, audience, people, query, aspects,
               llm_parse, llm_rerank, llm_summarize, llm_aspects,
               no_cache, no_profile):
+    """Recommend places for a region (by type/types or by --category).
+
+    Resolves preferences and flags, then delegates to
+    ``recommend_by_categories`` when ``--category`` is given or
+    ``recommend_places`` otherwise, and prints the ranked results."""
     lang = ctx.obj["lang"]
     if missing_keys("places") and run_wizard("places"):
         return
@@ -244,6 +263,10 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types,
          top, max_pages, min_price, max_price, location, radius, profile,
          cuisine, audience, people, query, aspects, llm_parse, llm_rerank,
          llm_summarize, llm_aspects, no_cache, no_profile):
+    """Build a multi-day itinerary, optionally seeded by a YouTube video summary.
+
+    Fetches recommendations for the region (same pipeline as ``recommend``) and
+    passes them, plus any video summary, to ``generate_plan``."""
     lang = ctx.obj["lang"]
     if (missing_keys("places") or missing_keys("llm")) and run_wizard("places", "llm"):
         return
@@ -334,6 +357,7 @@ def plan(ctx, region, budget, days, preferences, url, place_type, types,
 @click.option("--rating", default=None, type=int, help="Optional 1-5 rating to attach to a 'liked' action")
 @click.pass_context
 def feedback(_ctx, place_id, action, rating):
+    """Record a liked/disliked/visited event for a place into the saved profile."""
     profile = load_profile()
     profile.record(place_id, action=action, rating=rating)
     path = save_profile(profile)

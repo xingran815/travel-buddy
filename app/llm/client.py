@@ -1,9 +1,17 @@
+"""High-level text helpers for the YouTube-summary flow: translate and summarize.
+
+Thin wrappers over the configured provider (``app/llm/factory.get_provider``)
+that build the system/user prompts for translation and travel-oriented
+summarization. Both English and Turkish are supported as output languages.
+"""
+
 from app.llm.factory import get_provider
 
 LANG_NAMES = {"en": "English", "tr": "Turkish"}
 
 
 def translate_text(text: str, target_lang: str = "tr", source_language: str = "auto") -> str:
+    """Translate ``text`` into ``target_lang`` (default Turkish), returning only the translation."""
     lang_name = LANG_NAMES.get(target_lang, "Turkish")
     source_hint = f"from {source_language}" if source_language != "unknown" else ""
     result = get_provider().chat_text(
@@ -26,6 +34,7 @@ def translate_text(text: str, target_lang: str = "tr", source_language: str = "a
 
 
 def summarize_text(text: str, lang: str = "tr") -> str:
+    """Summarize ``text`` as a travel writer in ``lang``, emphasizing places and activities."""
     if lang == "en":
         system_content = (
             "You are a professional travel writer. Summarize the given text in English. "

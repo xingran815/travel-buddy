@@ -1,3 +1,5 @@
+"""Tests for the LLM recommendation helpers: query parsing, reranking, pros/cons, price estimation, and caching."""
+
 import json
 from unittest.mock import patch, MagicMock
 

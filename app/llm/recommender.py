@@ -30,6 +30,12 @@ PRICE_LEVEL_CACHE = CACHE_DIR / "price_level.json"
 
 
 def _chat_json(messages: list[dict], temperature: float = 0.1, budget=None) -> dict:
+    """Send a chat request expecting JSON back and parse it into a dict.
+
+    Charges token usage to ``budget`` when both are available, and defensively
+    strips Markdown code fences before parsing in case a provider wraps its JSON
+    despite being asked for raw output. Raises ``json.JSONDecodeError`` if the
+    response still isn't valid JSON; callers wrap this and fall back."""
     result = get_provider().chat_json(messages, temperature=temperature)
     if budget is not None and result.usage is not None:
         budget.add_usage(result.usage)
@@ -62,6 +68,13 @@ def parse_query(free_form: str, lang: str = "en", budget=None) -> dict:
 def _split_reviews_by_rating(
     reviews: list[dict], n_top: int = 3, n_bot: int = 3,
 ) -> tuple[list[dict], list[dict]]:
+    """Split reviews into the highest- and lowest-rated samples for the LLM.
+
+    Only reviews with non-empty text are considered. Returns ``(top, bottom)``
+    where ``top`` holds up to ``n_top`` best-rated and ``bottom`` up to ``n_bot``
+    worst-rated of what remains — giving the model balanced positive/negative
+    evidence without sending every review. The top sample is capped at ``n-1``
+    so at least one review can land in the bottom sample when possible."""
     with_text = [r for r in (reviews or []) if (r.get("text") or "").strip()]
     n = len(with_text)
     if n == 0:
@@ -75,10 +88,16 @@ def _split_reviews_by_rating(
 
 
 def _excerpt(r: dict) -> dict:
+    """Trim a review to ``{rating, text}`` with text capped at 240 chars."""
     return {"rating": r.get("rating"), "text": (r.get("text") or "")[:240]}
 
 
 def _place_summary(place: dict) -> dict:
+    """Build the compact, token-bounded place record sent to the rerank LLM.
+
+    Keeps the scoring signals (rating, price, distance, audience, breakdown) plus
+    a few excerpted good/bad reviews — enough for the model to judge fit without
+    paying for full review text on every candidate."""
     good, bad = _split_reviews_by_rating(place.get("reviews") or [])
     return {
         "place_id": place.get("place_id", ""),
@@ -96,6 +115,7 @@ def _place_summary(place: dict) -> dict:
 
 
 def _rerank_payload(places, query, profile, prefs, k_out) -> dict:
+    """Assemble the JSON payload (query + prefs + place summaries) for reranking."""
     return {
         "query": query or "",
         "profile": profile,
@@ -106,6 +126,7 @@ def _rerank_payload(places, query, profile, prefs, k_out) -> dict:
 
 
 def _rerank_chat(system: str, payload: dict, budget) -> dict:
+    """Run a rerank/summary chat call with the given system prompt and payload."""
     return _chat_json(
         [{"role": "system", "content": system},
          {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
@@ -135,6 +156,11 @@ def rerank_top_k(
 
 
 def _apply_rerank_order(order: list[dict], places: list[dict], k_out: int) -> list[dict]:
+    """Reorder ``places`` to match the LLM's ``order``, attaching rationale/rank.
+
+    Places named in ``order`` come first (carrying ``llm_rationale`` and a 1-based
+    ``llm_rank``); any the model dropped are appended in their original order so
+    the result is always filled up to ``k_out`` even on a partial response."""
     by_id = {p.get("place_id"): p for p in places}
     reranked = []
     for entry in order[:k_out]:
@@ -185,6 +211,12 @@ def rerank_with_pros_cons(
 def _attach_and_cache_pros_cons(
     reranked: list[dict], order: list[dict], original_places: list[dict], lang: str,
 ) -> None:
+    """Copy pros/cons from the rerank response onto places and cache them.
+
+    Takes up to three pros and cons per place from the combined rerank+summary
+    ``order`` and writes them to the ``PROS_CONS_CACHE`` keyed by
+    ``place_id:lang:review_signature`` so a later summary-only call can reuse
+    them. Places without reviews are annotated but not cached."""
     entries_by_id = {e.get("place_id"): e for e in order if isinstance(e, dict)}
     reviews_by_id = {p.get("place_id"): (p.get("reviews") or []) for p in original_places}
     cache = load_json_cache(PROS_CONS_CACHE)
