@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 struct AppCategory: Codable, Identifiable {
     let id: String
@@ -35,6 +36,21 @@ struct AppCategory: Codable, Identifiable {
         case "lodging":   return "teal"
         case "wellness":  return "mint"
         default:          return "gray"
+        }
+    }
+
+    var color: Color {
+        switch accentColor {
+        case "orange": return .orange
+        case "blue":   return .blue
+        case "purple": return .purple
+        case "green":  return .green
+        case "pink":   return .pink
+        case "indigo": return .indigo
+        case "yellow": return .yellow
+        case "teal":   return .teal
+        case "mint":   return .mint
+        default:       return .accentColor
         }
     }
 }

@@ -1,0 +1,2265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Travel Buddy — SwiftUI Design Mockup</title>
+<style>
+  :root {
+    --bg: #1e1e1e;
+    --bg-secondary: #2a2a2a;
+    --bg-tertiary: #333;
+    --bg-card: #2a2a2c;
+    --text: #f0f0f0;
+    --text-secondary: #999;
+    --text-tertiary: #666;
+    --accent: #0a84ff;
+    --accent-hover: #409cff;
+    --green: #30d158;
+    --red: #ff453a;
+    --orange: #ff9f0a;
+    --yellow: #ffd60a;
+    --purple: #bf5af2;
+    --cyan: #64d2ff;
+    --pink: #ff375f;
+    --sidebar-bg: #252526;
+    --sidebar-active: rgba(10, 132, 255, 0.18);
+    --border: #3a3a3c;
+    --divider: #38383a;
+    --toolbar-bg: #2c2c2e;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.3);
+    --shadow-lg: 0 8px 30px rgba(0,0,0,0.4);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: #111;
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 30px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .window {
+    width: 1120px;
+    height: 720px;
+    background: var(--bg);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+  }
+
+  /* Title Bar */
+  .titlebar {
+    height: 38px;
+    background: var(--toolbar-bg);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+  .titlebar .dots {
+    display: flex;
+    gap: 7px;
+  }
+  .titlebar .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+  }
+  .dot.close { background: #ff5f57; }
+  .dot.minimize { background: #febc2e; }
+  .dot.maximize { background: #28c840; }
+  .titlebar .title {
+    flex: 1;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-right: 60px;
+  }
+
+  /* Main Layout */
+  .main-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 220px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    padding: 12px 10px 6px;
+  }
+  .sidebar-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0 8px 6px;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    margin-bottom: 1px;
+  }
+  .sidebar-item:hover {
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+  }
+  .sidebar-item.active {
+    background: var(--sidebar-active);
+    color: var(--accent);
+  }
+  .sidebar-item .icon {
+    font-size: 16px;
+    width: 22px;
+    text-align: center;
+  }
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Content Area */
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg);
+  }
+  .content-page {
+    display: none;
+    padding: 28px 32px;
+    animation: fadeIn 0.2s ease;
+  }
+  .content-page.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    letter-spacing: -0.2px;
+  }
+  h3 {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 18px;
+    margin-bottom: 14px;
+    border: 1px solid var(--border);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 16px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: #444; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+  .btn-icon {
+    width: 32px; height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.15s;
+    color: var(--text-secondary);
+  }
+  .btn-icon:hover { background: #444; color: var(--text); }
+
+  /* Inputs */
+  .input-group { margin-bottom: 16px; }
+  .input-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+  }
+  input[type="text"], input[type="url"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+  }
+  textarea { resize: vertical; min-height: 60px; }
+
+  /* Tags / Chips */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 14px;
+    font-size: 12px;
+    font-weight: 500;
+    background: rgba(10, 132, 255, 0.15);
+    color: var(--accent);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .chip:hover { background: rgba(10, 132, 255, 0.25); }
+  .chip.active { background: var(--accent); color: white; }
+  .chip.green { background: rgba(48, 209, 88, 0.15); color: var(--green); }
+  .chip.orange { background: rgba(255, 159, 10, 0.15); color: var(--orange); }
+  .chip.purple { background: rgba(191, 90, 242, 0.15); color: var(--purple); }
+  .chip.red { background: rgba(255, 69, 58, 0.15); color: var(--red); }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge-beta { background: rgba(191, 90, 242, 0.2); color: var(--purple); }
+  .badge-new { background: rgba(48, 209, 88, 0.2); color: var(--green); }
+
+  /* Progress Bar */
+  .progress-container { margin: 16px 0; }
+  .progress-bar {
+    height: 4px;
+    background: var(--bg-tertiary);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar .fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  /* Grid */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--divider);
+    margin: 20px 0;
+  }
+
+  /* Stars */
+  .stars { color: var(--yellow); font-size: 12px; letter-spacing: 1px; }
+
+  /* Score Ring */
+  .score-ring {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .score-high { background: rgba(48, 209, 88, 0.15); color: var(--green); border: 2px solid var(--green); }
+  .score-mid { background: rgba(255, 159, 10, 0.15); color: var(--orange); border: 2px solid var(--orange); }
+  .score-low { background: rgba(255, 69, 58, 0.15); color: var(--red); border: 2px solid var(--red); }
+
+  /* Place Card */
+  .place-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .place-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .place-card .place-header {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+  .place-card .place-rank {
+    width: 28px; height: 28px;
+    background: var(--bg-tertiary);
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  .place-card .place-info { flex: 1; min-width: 0; }
+  .place-card .place-name {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .place-card .place-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .place-card .place-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .place-card .breakdown-bar {
+    display: flex;
+    height: 4px;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 10px;
+    gap: 1px;
+  }
+  .breakdown-bar .segment {
+    height: 100%;
+    border-radius: 1px;
+    transition: width 0.3s;
+  }
+  .place-card .breakdown-labels {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .breakdown-labels span {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .breakdown-labels span::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 1px;
+  }
+  .place-card .pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+  .pros-cons .pro { color: var(--green); }
+  .pros-cons .con { color: var(--red); }
+
+  /* Stat Row */
+  .stat-row {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 24px;
+  }
+  .stat-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    flex: 1;
+  }
+  .stat-box .stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .stat-box .stat-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  /* Toggle */
+  .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+  .toggle-row:last-child { border-bottom: none; }
+  .toggle-row .toggle-label {
+    font-size: 13px;
+  }
+  .toggle-row .toggle-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 1px;
+  }
+  .toggle {
+    width: 42px; height: 24px;
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: background 0.2s;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--green); border-color: var(--green); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 2px; left: 2px;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+  .toggle.on::after { transform: translateX(18px); }
+
+  /* Day Itinerary */
+  .day-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .day-header {
+    padding: 12px 16px;
+    background: rgba(10, 132, 255, 0.08);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .day-header h3 { margin: 0; color: var(--accent); }
+  .day-items { padding: 4px 0; }
+  .day-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 16px;
+    align-items: flex-start;
+  }
+  .day-item + .day-item { border-top: 1px solid rgba(255,255,255,0.04); }
+  .day-time {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    width: 52px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .day-activity {
+    flex: 1;
+  }
+  .day-activity .activity-name {
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .day-activity .activity-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .day-cost {
+    font-size: 12px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+
+  /* Segment colors */
+  .seg-quality { background: var(--green); }
+  .seg-volume { background: var(--cyan); }
+  .seg-distance { background: var(--orange); }
+  .seg-cost { background: var(--yellow); }
+  .seg-sentiment { background: var(--purple); }
+  .seg-cuisine { background: var(--pink); }
+  .seg-recency { background: var(--accent); }
+
+  .lbl-quality::before { background: var(--green) !important; }
+  .lbl-volume::before { background: var(--cyan) !important; }
+  .lbl-distance::before { background: var(--orange) !important; }
+  .lbl-cost::before { background: var(--yellow) !important; }
+  .lbl-sentiment::before { background: var(--purple) !important; }
+  .lbl-cuisine::before { background: var(--pink) !important; }
+  .lbl-recency::before { background: var(--accent) !important; }
+
+  /* Summary result */
+  .summary-result {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  .summary-result h4 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 14px 0 6px;
+  }
+  .summary-result h4:first-child { margin-top: 0; }
+  .summary-result ul {
+    padding-left: 18px;
+    margin: 4px 0;
+  }
+  .summary-result li {
+    margin-bottom: 4px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  /* Step indicator */
+  .steps {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+  .step.done { color: var(--green); }
+  .step.active { color: var(--accent); }
+  .step .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--bg-tertiary);
+    border: 1.5px solid var(--border);
+  }
+  .step.done .step-num { background: var(--green); border-color: var(--green); color: white; }
+  .step.active .step-num { border-color: var(--accent); color: var(--accent); }
+  .step-line {
+    width: 30px; height: 1px;
+    background: var(--border);
+    margin: 0 8px;
+  }
+  .step-line.done { background: var(--green); }
+
+  /* Category Grid */
+  .cat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .cat-tile {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .cat-tile:hover { border-color: var(--accent); }
+  .cat-tile.selected { border-color: var(--accent); background: rgba(10, 132, 255, 0.08); }
+  .cat-tile .cat-icon { font-size: 24px; margin-bottom: 6px; }
+  .cat-tile .cat-name { font-size: 12px; font-weight: 500; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+  }
+  .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+  .empty-state p { font-size: 14px; max-width: 300px; margin: 0 auto; }
+
+  /* Settings rows */
+  .settings-group {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px 16px;
+    margin-bottom: 16px;
+  }
+  .settings-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+  }
+  .settings-row + .settings-row { border-top: 1px solid var(--divider); }
+  .settings-row .sr-left { }
+  .settings-row .sr-label { font-size: 13px; font-weight: 500; }
+  .settings-row .sr-desc { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
+  .settings-row .sr-right { display: flex; align-items: center; gap: 8px; }
+  .settings-row select {
+    width: auto;
+    padding: 5px 10px;
+    font-size: 12px;
+  }
+
+  /* Scrollbar */
+  .content::-webkit-scrollbar { width: 8px; }
+  .content::-webkit-scrollbar-track { background: transparent; }
+  .content::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+  .content::-webkit-scrollbar-thumb:hover { background: #555; }
+
+  /* Video card */
+  .video-input-area {
+    background: var(--bg-card);
+    border: 2px dashed var(--border);
+    border-radius: var(--radius-lg);
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 20px;
+    transition: all 0.15s;
+  }
+  .video-input-area:focus-within {
+    border-color: var(--accent);
+    background: rgba(10, 132, 255, 0.04);
+  }
+  .video-input-area .input-row {
+    display: flex;
+    gap: 10px;
+    max-width: 500px;
+    margin: 12px auto 0;
+  }
+  .video-input-area input {
+    flex: 1;
+  }
+
+  /* Map placeholder */
+  .map-placeholder {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius);
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-tertiary);
+    font-size: 13px;
+    border: 1px solid var(--border);
+    margin-bottom: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .map-placeholder::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(circle at 30% 40%, rgba(10,132,255,0.08) 0%, transparent 50%),
+      radial-gradient(circle at 70% 60%, rgba(48,209,88,0.06) 0%, transparent 40%);
+  }
+  .map-pin {
+    position: absolute;
+    font-size: 20px;
+  }
+
+  /* Filter bar */
+  .filter-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .filter-bar .search-input {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  /* Inline form row */
+  .form-row {
+    display: flex;
+    gap: 14px;
+    align-items: flex-end;
+  }
+  .form-row .input-group { flex: 1; }
+
+  /* Tab bar */
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 20px;
+  }
+  .tab-item {
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    margin-bottom: -1px;
+  }
+  .tab-item:hover { color: var(--text); }
+  .tab-item.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Profile stats */
+  .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .profile-avatar {
+    width: 56px; height: 56px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+  }
+  .profile-info h2 { margin-bottom: 2px; }
+
+  /* Interaction buttons */
+  .action-group {
+    display: flex;
+    gap: 6px;
+  }
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .action-btn:hover { background: var(--bg-tertiary); }
+  .action-btn.liked { color: var(--green); border-color: rgba(48,209,88,0.3); }
+  .action-btn.visited { color: var(--accent); border-color: rgba(10,132,255,0.3); }
+
+  /* Tooltip-style detail popup marker */
+  .detail-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-top: 12px;
+  }
+
+  /* Responsive note */
+  .design-note {
+    text-align: center;
+    padding: 16px;
+    font-size: 11px;
+    color: var(--text-tertiary);
+    border-top: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div style="display: flex; flex-direction: column; gap: 24px;">
+
+<!-- Design Title -->
+<div style="text-align: center; margin-bottom: 10px;">
+  <h1 style="font-size: 20px; color: var(--text-secondary); font-weight: 400;">SwiftUI Design — <strong style="color: var(--text);">Travel Buddy</strong></h1>
+  <p style="font-size: 13px; color: var(--text-tertiary); margin-top: 4px;">Interactive macOS app mockup — click sidebar items to navigate</p>
+</div>
+
+<!-- App Window -->
+<div class="window">
+  <!-- Title Bar -->
+  <div class="titlebar">
+    <div class="dots">
+      <div class="dot close"></div>
+      <div class="dot minimize"></div>
+      <div class="dot maximize"></div>
+    </div>
+    <div class="title">Travel Buddy</div>
+  </div>
+
+  <div class="main-layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Discover</div>
+        <div class="sidebar-item active" data-page="home">
+          <span class="icon">🌍</span> Home
+        </div>
+        <div class="sidebar-item" data-page="summarize">
+          <span class="icon">▶️</span> Video Summary
+        </div>
+        <div class="sidebar-item" data-page="recommend">
+          <span class="icon">📍</span> Recommendations
+        </div>
+        <div class="sidebar-item" data-page="plan">
+          <span class="icon">🗓️</span> Trip Planner
+          <span class="badge badge-beta" style="margin-left: auto;">Beta</span>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-label">You</div>
+        <div class="sidebar-item" data-page="profile">
+          <span class="icon">👤</span> Profile
+        </div>
+        <div class="sidebar-item" data-page="history">
+          <span class="icon">🕐</span> History
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="sidebar-item" data-page="settings">
+          <span class="icon">⚙️</span> Settings
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- HOME PAGE -->
+      <div class="content-page active" id="page-home">
+        <h1>Welcome back</h1>
+        <p class="subtitle">Plan your next adventure with AI-powered insights</p>
+
+        <!-- Quick Actions -->
+        <div class="grid-3" style="margin-bottom: 24px;">
+          <div class="card" style="cursor: pointer; text-align: center; padding: 24px 16px;" onclick="navigateTo('summarize')">
+            <div style="font-size: 32px; margin-bottom: 8px;">▶️</div>
+            <h3 style="margin-bottom: 4px;">Summarize Video</h3>
+            <p style="font-size: 12px; color: var(--text-secondary);">Paste a YouTube URL to extract travel insights</p>
+          </div>
+          <div class="card" style="cursor: pointer; text-align: center; padding: 24px 16px;" onclick="navigateTo('recommend')">
+            <div style="font-size: 32px; margin-bottom: 8px;">📍</div>
+            <h3 style="margin-bottom: 4px;">Find Places</h3>
+            <p style="font-size: 12px; color: var(--text-secondary);">AI-scored recommendations for any region</p>
+          </div>
+          <div class="card" style="cursor: pointer; text-align: center; padding: 24px 16px;" onclick="navigateTo('plan')">
+            <div style="font-size: 32px; margin-bottom: 8px;">🗓️</div>
+            <h3 style="margin-bottom: 4px;">Plan Trip</h3>
+            <p style="font-size: 12px; color: var(--text-secondary);">Generate a day-by-day itinerary</p>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <h2>Recent Activity</h2>
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
+            <div style="font-size: 20px;">▶️</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Istanbul Street Food Tour</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Summarized 2 hours ago · 12 places mentioned</div>
+            </div>
+            <span class="chip green">Completed</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 10px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
+            <div style="font-size: 20px;">📍</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Kadiköy restaurants — Foodie profile</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Yesterday · 10 results · 3 liked</div>
+            </div>
+            <span class="chip">10 places</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 10px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
+            <div style="font-size: 20px;">🗓️</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Cappadocia 3-day plan</div>
+              <div style="font-size: 11px; color: var(--text-secondary);">2 days ago · $500 budget · 3 days</div>
+            </div>
+            <span class="chip purple">Itinerary</span>
+          </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div style="margin-top: 20px;">
+          <h2>Your Stats</h2>
+          <div class="stat-row">
+            <div class="stat-box">
+              <div class="stat-value" style="color: var(--accent);">24</div>
+              <div class="stat-label">Places discovered</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" style="color: var(--green);">8</div>
+              <div class="stat-label">Places liked</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" style="color: var(--purple);">3</div>
+              <div class="stat-label">Trips planned</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-value" style="color: var(--orange);">5</div>
+              <div class="stat-label">Videos summarized</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SUMMARIZE PAGE -->
+      <div class="content-page" id="page-summarize">
+        <h1>Video Summary</h1>
+        <p class="subtitle">Extract travel insights from YouTube videos</p>
+
+        <div class="video-input-area">
+          <div style="font-size: 36px; margin-bottom: 6px;">▶️</div>
+          <div style="font-size: 14px; font-weight: 500;">Paste a YouTube URL</div>
+          <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">We'll transcribe, translate, and summarize the video for you</div>
+          <div class="input-row">
+            <input type="url" placeholder="https://www.youtube.com/watch?v=..." id="video-url-input">
+            <button class="btn btn-primary" onclick="startSummarize()">Summarize</button>
+          </div>
+        </div>
+
+        <!-- Processing State (hidden by default) -->
+        <div id="summarize-progress" style="display: none;">
+          <div class="card">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+              <div style="font-size: 20px;">🎬</div>
+              <div>
+                <div style="font-size: 14px; font-weight: 600;">Istanbul Hidden Gems — Local's Guide</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">youtube.com · 18:42</div>
+              </div>
+            </div>
+
+            <div class="steps">
+              <div class="step done">
+                <div class="step-num">✓</div> Download
+              </div>
+              <div class="step-line done"></div>
+              <div class="step done">
+                <div class="step-num">✓</div> Transcribe
+              </div>
+              <div class="step-line done"></div>
+              <div class="step done">
+                <div class="step-num">✓</div> Translate
+              </div>
+              <div class="step-line"></div>
+              <div class="step active">
+                <div class="step-num">4</div> Summarize
+              </div>
+            </div>
+
+            <div class="progress-container">
+              <div class="progress-bar">
+                <div class="fill" style="width: 78%;"></div>
+              </div>
+              <div class="progress-label">
+                <span>Generating summary with GPT-4o...</span>
+                <span>78%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Result State -->
+        <div id="summarize-result" style="display: none;">
+          <div class="card">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+              <div style="font-size: 20px;">🎬</div>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600;">Istanbul Hidden Gems — Local's Guide</div>
+                <div style="font-size: 12px; color: var(--text-secondary);">Source: Turkish · Translated to English · 18:42</div>
+              </div>
+              <span class="chip green">✓ Complete</span>
+            </div>
+          </div>
+
+          <!-- Tabs for Translation / Summary -->
+          <div class="tab-bar">
+            <div class="tab-item active" onclick="switchResultTab(this, 'summary-tab')">Summary</div>
+            <div class="tab-item" onclick="switchResultTab(this, 'translation-tab')">Full Translation</div>
+          </div>
+
+          <div id="summary-tab">
+            <div class="summary-result">
+              <h4>🍽️ Restaurants & Food</h4>
+              <ul>
+                <li><strong>Çiya Sofrası</strong> (Kadiköy) — Renowned for traditional Anatolian dishes. The host recommends the lamb tandir and stuffed grape leaves.</li>
+                <li><strong>Karaköy Lokantası</strong> — Upscale Turkish comfort food with harbor views. Grilled octopus highlighted as a must-try.</li>
+                <li><strong>Balıkçı Sabahattin</strong> — Fresh fish restaurant near Sultanahmet. Family-run for 90+ years.</li>
+              </ul>
+              <h4>📍 Activities & Sights</h4>
+              <ul>
+                <li><strong>Balat neighborhood</strong> — Colorful streets, antique shops, and the Iron Church. Best visited in morning for photographs.</li>
+                <li><strong>Princes' Islands ferry</strong> — 1.5 hour ride from Kadiköy, horse-drawn carriages now replaced by electric vehicles.</li>
+                <li><strong>Grand Bazaar back streets</strong> — Lesser-known artisan workshops behind the main corridors.</li>
+              </ul>
+              <h4>💡 Tips</h4>
+              <ul>
+                <li>Use Istanbulkart for all public transport — much cheaper than tokens.</li>
+                <li>Avoid taxis from Sultanahmet; use metro + tram instead.</li>
+              </ul>
+            </div>
+          </div>
+          <div id="translation-tab" style="display: none;">
+            <div class="summary-result">
+              <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.8;">
+                Today I want to show you my favorite places in Istanbul that most tourists never see. We'll start in the Kadiköy neighborhood on the Asian side, which is where I grew up. First stop is Çiya Sofrası — this restaurant has been serving traditional Anatolian dishes for decades...
+              </p>
+            </div>
+          </div>
+
+          <div style="margin-top: 14px; display: flex; gap: 8px;">
+            <button class="btn btn-secondary">📋 Copy Summary</button>
+            <button class="btn btn-secondary" onclick="navigateTo('recommend')">📍 Find These Places</button>
+            <button class="btn btn-secondary" onclick="navigateTo('plan')">🗓️ Create Trip Plan</button>
+          </div>
+        </div>
+
+        <!-- Show result by default for demo -->
+        <script>
+          function startSummarize() {
+            document.getElementById('summarize-progress').style.display = 'block';
+            document.getElementById('summarize-result').style.display = 'none';
+            setTimeout(() => {
+              document.getElementById('summarize-progress').style.display = 'none';
+              document.getElementById('summarize-result').style.display = 'block';
+            }, 2000);
+          }
+        </script>
+      </div>
+
+      <!-- RECOMMEND PAGE -->
+      <div class="content-page" id="page-recommend">
+        <h1>Place Recommendations</h1>
+        <p class="subtitle">AI-scored places with 9-factor composite ranking</p>
+
+        <!-- Search Bar -->
+        <div class="form-row" style="margin-bottom: 20px;">
+          <div class="input-group" style="flex: 2;">
+            <label>Region</label>
+            <input type="text" placeholder="e.g. Kadiköy, Istanbul" value="Kadiköy, Istanbul">
+          </div>
+          <div class="input-group" style="flex: 1;">
+            <label>Profile</label>
+            <select>
+              <option>Balanced</option>
+              <option selected>Foodie</option>
+              <option>Budget</option>
+              <option>Atmosphere</option>
+            </select>
+          </div>
+          <div class="input-group" style="flex: 1;">
+            <label>Results</label>
+            <select>
+              <option>3</option>
+              <option selected>5</option>
+              <option>10</option>
+            </select>
+          </div>
+          <div class="input-group" style="flex: 0;">
+            <label>&nbsp;</label>
+            <button class="btn btn-primary">Search</button>
+          </div>
+        </div>
+
+        <!-- Browse Mode Tabs -->
+        <div class="tab-bar" id="recommend-tabs">
+          <div class="tab-item active" onclick="switchBrowseMode('types')">By Place Type</div>
+          <div class="tab-item" onclick="switchBrowseMode('cats')">By Category</div>
+        </div>
+
+        <!-- ===== BY PLACE TYPE VIEW ===== -->
+        <div id="browse-types">
+          <!-- Filters -->
+          <div class="filter-bar">
+            <div class="chip active">🍽️ Restaurant</div>
+            <div class="chip">🏛️ Museum</div>
+            <div class="chip">🍸 Bar</div>
+            <div class="chip">🎭 Attraction</div>
+            <div class="chip">☕ Cafe</div>
+            <div style="margin-left: auto; display: flex; gap: 6px;">
+              <div class="chip orange">🧑‍🍳 Turkish</div>
+              <div class="chip purple">👥 2 people</div>
+            </div>
+          </div>
+
+          <!-- AI Toggle Row -->
+          <div style="display: flex; gap: 12px; margin-bottom: 16px; font-size: 12px; color: var(--text-secondary); align-items: center;">
+            <span>AI Features:</span>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <div class="toggle on" style="width: 32px; height: 18px;" onclick="this.classList.toggle('on')"><div style="position: absolute;"></div></div>
+              Rerank
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <div class="toggle on" style="width: 32px; height: 18px;" onclick="this.classList.toggle('on')"><div style="position: absolute;"></div></div>
+              Summarize
+            </label>
+            <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+              <div class="toggle" style="width: 32px; height: 18px;" onclick="this.classList.toggle('on')"><div style="position: absolute;"></div></div>
+              Aspect tags
+            </label>
+          </div>
+
+          <!-- Map -->
+          <div class="map-placeholder">
+            <span class="map-pin" style="top: 40%; left: 35%;">📍</span>
+            <span class="map-pin" style="top: 55%; left: 50%;">📍</span>
+            <span class="map-pin" style="top: 30%; left: 60%;">📍</span>
+            <span class="map-pin" style="top: 60%; left: 40%;">📍</span>
+            <span class="map-pin" style="top: 45%; left: 65%;">📍</span>
+            <span style="position: relative; z-index: 1;">MapKit view — pins show result locations</span>
+          </div>
+
+          <!-- Results -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h2 style="margin: 0;">5 results in Kadiköy</h2>
+            <span style="font-size: 12px; color: var(--text-secondary);">Sorted by composite score</span>
+          </div>
+
+          <!-- Place 1 -->
+          <div class="place-card">
+            <div class="place-header">
+              <div class="place-rank">1</div>
+              <div class="place-info">
+                <div class="place-name">Çiya Sofrası</div>
+                <div class="place-meta">
+                  <span>⭐ 4.6</span>
+                  <span>💬 8,241 reviews</span>
+                  <span>💰 $$</span>
+                  <span>📏 0.3 km</span>
+                  <span>🍽️ Turkish, Anatolian</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">Güneşlibahçe Sk. No:43, Kadiköy</div>
+              </div>
+              <div class="score-ring score-high">4.52</div>
+            </div>
+            <div class="breakdown-bar">
+              <div class="segment seg-quality" style="width: 27%;"></div>
+              <div class="segment seg-sentiment" style="width: 18%;"></div>
+              <div class="segment seg-cuisine" style="width: 22%;"></div>
+              <div class="segment seg-volume" style="width: 12%;"></div>
+              <div class="segment seg-distance" style="width: 11%;"></div>
+              <div class="segment seg-cost" style="width: 10%;"></div>
+            </div>
+            <div class="breakdown-labels">
+              <span class="lbl-quality">Quality 27%</span>
+              <span class="lbl-cuisine">Cuisine 22%</span>
+              <span class="lbl-sentiment">Sentiment 18%</span>
+              <span class="lbl-volume">Volume 12%</span>
+              <span class="lbl-distance">Distance 11%</span>
+              <span class="lbl-cost">Cost 10%</span>
+            </div>
+            <div class="pros-cons">
+              <div>
+                <div class="pro">✓ Authentic Anatolian dishes daily</div>
+                <div class="pro">✓ Fresh seasonal ingredients</div>
+                <div class="pro">✓ Exceptional kebab variety</div>
+              </div>
+              <div>
+                <div class="con">✗ Long wait times at peak hours</div>
+                <div class="con">✗ Limited seating space</div>
+              </div>
+            </div>
+            <div style="margin-top: 10px;">
+              <div class="action-group">
+                <button class="action-btn liked">❤️ Liked</button>
+                <button class="action-btn visited">✓ Visited</button>
+                <button class="action-btn">🔗 Website</button>
+                <button class="action-btn">📞 Call</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Place 2 -->
+          <div class="place-card">
+            <div class="place-header">
+              <div class="place-rank">2</div>
+              <div class="place-info">
+                <div class="place-name">Borsam Taş Fırın</div>
+                <div class="place-meta">
+                  <span>⭐ 4.5</span>
+                  <span>💬 5,120 reviews</span>
+                  <span>💰 $</span>
+                  <span>📏 0.5 km</span>
+                  <span>🍽️ Turkish, Bakery</span>
+                </div>
+                <div style="font-size: 12px; color: var(--text-tertiary); margin-top: 4px;">Caferağa Mah., Moda Cd., Kadiköy</div>
+              </div>
+              <div class="score-ring score-high">4.38</div>
+            </div>
+            <div class="breakdown-bar">
+              <div class="segment seg-quality" style="width: 25%;"></div>
+              <div class="segment seg-cost" style="width: 20%;"></div>
+              <div class="segment seg-cuisine" style="width: 18%;"></div>
+              <div class="segment seg-sentiment" style="width: 16%;"></div>
+              <div class="segment seg-volume" style="width: 11%;"></div>
+              <div class="segment seg-distance" style="width: 10%;"></div>
+            </div>
+            <div class="breakdown-labels">
+              <span class="lbl-quality">Quality 25%</span>
+              <span class="lbl-cost">Cost 20%</span>
+              <span class="lbl-cuisine">Cuisine 18%</span>
+              <span class="lbl-sentiment">Sentiment 16%</span>
+            </div>
+            <div class="pros-cons">
+              <div>
+                <div class="pro">✓ Famous stone-oven pide</div>
+                <div class="pro">✓ Very affordable portions</div>
+              </div>
+              <div>
+                <div class="con">✗ Cash only</div>
+                <div class="con">✗ Crowded on weekends</div>
+              </div>
+            </div>
+            <div style="margin-top: 10px;">
+              <div class="action-group">
+                <button class="action-btn">❤️ Like</button>
+                <button class="action-btn">📍 Save</button>
+                <button class="action-btn">🔗 Website</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Place 3 (compact) -->
+          <div class="place-card">
+            <div class="place-header">
+              <div class="place-rank">3</div>
+              <div class="place-info">
+                <div class="place-name">Baylan Pastanesi</div>
+                <div class="place-meta">
+                  <span>⭐ 4.4</span>
+                  <span>💬 3,890 reviews</span>
+                  <span>💰 $$</span>
+                  <span>📏 0.7 km</span>
+                  <span>🍰 Dessert, Cafe</span>
+                </div>
+              </div>
+              <div class="score-ring score-high">4.21</div>
+            </div>
+          </div>
+
+          <!-- Place 4 (compact) -->
+          <div class="place-card">
+            <div class="place-header">
+              <div class="place-rank">4</div>
+              <div class="place-info">
+                <div class="place-name">Kadıköy Fish Market</div>
+                <div class="place-meta">
+                  <span>⭐ 4.3</span>
+                  <span>💬 2,341 reviews</span>
+                  <span>💰 $$</span>
+                  <span>📏 0.4 km</span>
+                  <span>🐟 Seafood</span>
+                </div>
+              </div>
+              <div class="score-ring score-mid">3.95</div>
+            </div>
+          </div>
+
+          <!-- Place 5 (compact) -->
+          <div class="place-card">
+            <div class="place-header">
+              <div class="place-rank">5</div>
+              <div class="place-info">
+                <div class="place-name">Hatay Medeniyetler Sofrası</div>
+                <div class="place-meta">
+                  <span>⭐ 4.2</span>
+                  <span>💬 1,892 reviews</span>
+                  <span>💰 $$</span>
+                  <span>📏 1.1 km</span>
+                  <span>🍽️ Hatay cuisine</span>
+                </div>
+              </div>
+              <div class="score-ring score-mid">3.87</div>
+            </div>
+          </div>
+        </div><!-- /browse-types -->
+
+        <!-- ===== BY CATEGORY VIEW ===== -->
+        <div id="browse-cats" style="display: none;">
+          <!-- Category Grid -->
+          <div class="cat-grid">
+            <div class="cat-tile selected">
+              <div class="cat-icon">🍽️</div>
+              <div class="cat-name">Food</div>
+            </div>
+            <div class="cat-tile selected">
+              <div class="cat-icon">🏛️</div>
+              <div class="cat-name">Sights</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">🎨</div>
+              <div class="cat-name">Museums</div>
+            </div>
+            <div class="cat-tile selected">
+              <div class="cat-icon">🌿</div>
+              <div class="cat-name">Nature</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">🛍️</div>
+              <div class="cat-name">Shopping</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">🌙</div>
+              <div class="cat-name">Nightlife</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">👨‍👩‍👧</div>
+              <div class="cat-name">Family</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">🏨</div>
+              <div class="cat-name">Lodging</div>
+            </div>
+            <div class="cat-tile">
+              <div class="cat-icon">💆</div>
+              <div class="cat-name">Wellness</div>
+            </div>
+          </div>
+
+          <!-- Category refinement -->
+          <div class="form-row" style="margin-bottom: 16px;">
+            <div class="input-group" style="flex: 0.6;">
+              <label>Results per category</label>
+              <select>
+                <option>3</option>
+                <option selected>5</option>
+                <option>10</option>
+              </select>
+            </div>
+            <div class="input-group" style="flex: 0.6;">
+              <label>Profile</label>
+              <select>
+                <option selected>Balanced</option>
+                <option>Foodie</option>
+                <option>Budget</option>
+                <option>Atmosphere</option>
+              </select>
+            </div>
+            <div class="input-group" style="flex: 0.5;">
+              <label>Audience</label>
+              <select>
+                <option selected>Any</option>
+                <option>Adult</option>
+                <option>Family</option>
+              </select>
+            </div>
+            <div class="input-group" style="flex: 0;">
+              <label>&nbsp;</label>
+              <button class="btn btn-primary">Search Categories</button>
+            </div>
+          </div>
+
+          <!-- Category Results: Food -->
+          <div style="margin-top: 8px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(10,132,255,0.06); border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;">
+              <span style="font-size: 20px;">🍽️</span>
+              <h3 style="margin: 0; color: var(--accent);">Food</h3>
+              <span style="font-size: 12px; color: var(--text-secondary); margin-left: auto;">3 results</span>
+            </div>
+            <div style="border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 10px;">
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">1</div>
+                  <div class="place-info">
+                    <div class="place-name">Çiya Sofrası</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.6</span>
+                      <span>💬 8,241</span>
+                      <span>💰 $$</span>
+                      <span>📏 0.3 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.52</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">2</div>
+                  <div class="place-info">
+                    <div class="place-name">Borsam Taş Fırın</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.5</span>
+                      <span>💬 5,120</span>
+                      <span>💰 $</span>
+                      <span>📏 0.5 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.38</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 0;">
+                <div class="place-header">
+                  <div class="place-rank">3</div>
+                  <div class="place-info">
+                    <div class="place-name">Baylan Pastanesi</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.4</span>
+                      <span>💬 3,890</span>
+                      <span>💰 $$</span>
+                      <span>📏 0.7 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.21</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category Results: Sights -->
+          <div style="margin-top: 16px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(10,132,255,0.06); border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;">
+              <span style="font-size: 20px;">🏛️</span>
+              <h3 style="margin: 0; color: var(--accent);">Sights</h3>
+              <span style="font-size: 12px; color: var(--text-secondary); margin-left: auto;">3 results</span>
+            </div>
+            <div style="border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 10px;">
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">1</div>
+                  <div class="place-info">
+                    <div class="place-name">Haydarpaşa Train Station</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.7</span>
+                      <span>💬 12,400</span>
+                      <span>💰 Free</span>
+                      <span>📏 0.8 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.61</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">2</div>
+                  <div class="place-info">
+                    <div class="place-name">Kadiköy Antique Market</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.3</span>
+                      <span>💬 2,150</span>
+                      <span>💰 Free</span>
+                      <span>📏 0.2 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.12</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 0;">
+                <div class="place-header">
+                  <div class="place-rank">3</div>
+                  <div class="place-info">
+                    <div class="place-name">Moda Sahili</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.5</span>
+                      <span>💬 6,780</span>
+                      <span>💰 Free</span>
+                      <span>📏 1.2 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.05</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Category Results: Nature -->
+          <div style="margin-top: 16px;">
+            <div style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: rgba(10,132,255,0.06); border: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0;">
+              <span style="font-size: 20px;">🌿</span>
+              <h3 style="margin: 0; color: var(--accent);">Nature</h3>
+              <span style="font-size: 12px; color: var(--text-secondary); margin-left: auto;">3 results</span>
+            </div>
+            <div style="border: 1px solid var(--border); border-top: none; border-radius: 0 0 var(--radius) var(--radius); padding: 10px;">
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">1</div>
+                  <div class="place-info">
+                    <div class="place-name">Fenerbahçe Park</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.5</span>
+                      <span>💬 9,200</span>
+                      <span>💰 Free</span>
+                      <span>📏 1.5 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.33</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 8px;">
+                <div class="place-header">
+                  <div class="place-rank">2</div>
+                  <div class="place-info">
+                    <div class="place-name">Caddebostan Sahil</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.4</span>
+                      <span>💬 5,600</span>
+                      <span>💰 Free</span>
+                      <span>📏 2.1 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-high">4.10</div>
+                </div>
+              </div>
+              <div class="place-card" style="margin-bottom: 0;">
+                <div class="place-header">
+                  <div class="place-rank">3</div>
+                  <div class="place-info">
+                    <div class="place-name">Yoğurtçu Park</div>
+                    <div class="place-meta">
+                      <span>⭐ 4.2</span>
+                      <span>💬 3,100</span>
+                      <span>💰 Free</span>
+                      <span>📏 0.6 km</span>
+                    </div>
+                  </div>
+                  <div class="score-ring score-mid">3.88</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div><!-- /browse-cats -->
+      </div>
+
+      <!-- PLAN PAGE -->
+      <div class="content-page" id="page-plan">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1>Trip Planner</h1>
+          <span class="badge badge-beta">Beta</span>
+        </div>
+        <p class="subtitle">Combine video insights and place recommendations into a day-by-day itinerary</p>
+
+        <!-- Plan Configuration -->
+        <div class="card">
+          <h3>Trip Configuration</h3>
+          <div class="form-row" style="margin-bottom: 14px;">
+            <div class="input-group">
+              <label>Destination</label>
+              <input type="text" placeholder="e.g. Cappadocia, Turkey" value="Cappadocia, Turkey">
+            </div>
+            <div class="input-group" style="flex: 0.5;">
+              <label>Budget (USD)</label>
+              <input type="number" value="500">
+            </div>
+            <div class="input-group" style="flex: 0.4;">
+              <label>Days</label>
+              <input type="number" value="3">
+            </div>
+          </div>
+          <div class="form-row" style="margin-bottom: 14px;">
+            <div class="input-group">
+              <label>Preferences</label>
+              <input type="text" placeholder="e.g. history, food, nature">
+            </div>
+            <div class="input-group">
+              <label>YouTube URL (optional)</label>
+              <input type="url" placeholder="Paste URL for destination insights">
+            </div>
+          </div>
+          <div style="display: flex; gap: 12px; margin-top: 4px; align-items: center;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <div class="chip active">🍽️ Restaurant</div>
+              <div class="chip active">🏛️ Museum</div>
+              <div class="chip">🎭 Attraction</div>
+              <div class="chip active">🌿 Nature</div>
+            </div>
+            <div style="margin-left: auto;">
+              <button class="btn btn-primary">Generate Plan</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generated Itinerary -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 20px 0 14px;">
+          <h2 style="margin: 0;">Cappadocia — 3 Day Itinerary</h2>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary btn-sm">📋 Copy</button>
+            <button class="btn btn-secondary btn-sm">📄 Export PDF</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-bottom: 16px;">
+          <div class="stat-box" style="padding: 12px 16px;">
+            <div class="stat-value" style="font-size: 20px; color: var(--green);">$485</div>
+            <div class="stat-label">Estimated total</div>
+          </div>
+          <div class="stat-box" style="padding: 12px 16px;">
+            <div class="stat-value" style="font-size: 20px; color: var(--accent);">3</div>
+            <div class="stat-label">Days</div>
+          </div>
+          <div class="stat-box" style="padding: 12px 16px;">
+            <div class="stat-value" style="font-size: 20px; color: var(--purple);">12</div>
+            <div class="stat-label">Activities</div>
+          </div>
+          <div class="stat-box" style="padding: 12px 16px;">
+            <div class="stat-value" style="font-size: 20px; color: var(--orange);">6</div>
+            <div class="stat-label">Restaurants</div>
+          </div>
+        </div>
+
+        <!-- Day 1 -->
+        <div class="day-card">
+          <div class="day-header">
+            <h3>Day 1 — Arrival & Göreme</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">~$155</span>
+          </div>
+          <div class="day-items">
+            <div class="day-item">
+              <div class="day-time">06:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🎈 Hot Air Balloon Ride</div>
+                <div class="activity-desc">Sunrise flight over fairy chimneys — book 1 day ahead. Dress warmly.</div>
+              </div>
+              <div class="day-cost">$80</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">09:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🍳 Breakfast at Topdeck Cave Restaurant</div>
+                <div class="activity-desc">Traditional Turkish breakfast with valley views. ⭐ 4.5 · 2,100 reviews</div>
+              </div>
+              <div class="day-cost">$15</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">11:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🏛️ Göreme Open Air Museum</div>
+                <div class="activity-desc">Rock-cut churches with Byzantine frescoes. Allow 2 hours. Audio guide recommended.</div>
+              </div>
+              <div class="day-cost">$10</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">13:30</div>
+              <div class="day-activity">
+                <div class="activity-name">🍽️ Lunch at Pumpkin Goreme</div>
+                <div class="activity-desc">Local pottery kebab and testi kebabı. ⭐ 4.4 · 1,800 reviews</div>
+              </div>
+              <div class="day-cost">$20</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">15:30</div>
+              <div class="day-activity">
+                <div class="activity-name">🚶 Sunset Point & Rose Valley Hike</div>
+                <div class="activity-desc">Easy 3km trail through pink rock formations. Sunset around 19:00.</div>
+              </div>
+              <div class="day-cost">Free</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">19:30</div>
+              <div class="day-activity">
+                <div class="activity-name">🍽️ Dinner at Old Greek House</div>
+                <div class="activity-desc">Restored mansion with traditional Cappadocian cuisine. ⭐ 4.3 · 950 reviews</div>
+              </div>
+              <div class="day-cost">$30</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day 2 -->
+        <div class="day-card">
+          <div class="day-header">
+            <h3>Day 2 — Underground Cities & Valleys</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">~$170</span>
+          </div>
+          <div class="day-items">
+            <div class="day-item">
+              <div class="day-time">08:30</div>
+              <div class="day-activity">
+                <div class="activity-name">🏛️ Derinkuyu Underground City</div>
+                <div class="activity-desc">8-level deep ancient city. Claustrophobic passages — not for everyone.</div>
+              </div>
+              <div class="day-cost">$8</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">11:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🚗 Ihlara Valley Drive & Walk</div>
+                <div class="activity-desc">14km canyon with river trail and rock churches. Do the 4km section from Ihlara to Belisirma.</div>
+              </div>
+              <div class="day-cost">$5</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">13:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🍽️ Riverside Lunch in Belisırma</div>
+                <div class="activity-desc">Trout fresh from the river at one of the platform restaurants.</div>
+              </div>
+              <div class="day-cost">$12</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">15:30</div>
+              <div class="day-activity">
+                <div class="activity-name">🏺 Avanos Pottery Workshop</div>
+                <div class="activity-desc">Hands-on pottery class using Kızılırmak river clay. 1.5 hours.</div>
+              </div>
+              <div class="day-cost">$25</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Day 3 (collapsed) -->
+        <div class="day-card">
+          <div class="day-header">
+            <h3>Day 3 — Üçhisar & Departure</h3>
+            <span style="font-size: 12px; color: var(--text-secondary);">~$160</span>
+          </div>
+          <div class="day-items">
+            <div class="day-item">
+              <div class="day-time">08:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🏰 Üçhisar Castle</div>
+                <div class="activity-desc">Highest point in Cappadocia. Panoramic 360° views of the region.</div>
+              </div>
+              <div class="day-cost">$5</div>
+            </div>
+            <div class="day-item">
+              <div class="day-time">10:00</div>
+              <div class="day-activity">
+                <div class="activity-name">🛍️ Local Market & Souvenirs</div>
+                <div class="activity-desc">Handwoven carpets, onyx jewelry, and Turkish delight.</div>
+              </div>
+              <div class="day-cost">$40</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="background: rgba(10, 132, 255, 0.06); border-color: rgba(10, 132, 255, 0.2);">
+          <div style="font-size: 13px;">
+            <strong>💡 Travel Tips</strong>
+            <ul style="padding-left: 18px; margin-top: 6px; color: var(--text-secondary); font-size: 12px;">
+              <li>Rent a car or join a small group tour — public transport between valleys is limited</li>
+              <li>Book balloon rides through your hotel for best rates (€100-150)</li>
+              <li>Carry cash — many small restaurants and shops don't accept cards</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- PROFILE PAGE -->
+      <div class="content-page" id="page-profile">
+        <div class="profile-header">
+          <div class="profile-avatar">T</div>
+          <div class="profile-info">
+            <h2 style="margin-bottom: 2px;">Traveler Profile</h2>
+            <div style="font-size: 12px; color: var(--text-secondary);">Personalized recommendations based on your preferences</div>
+          </div>
+        </div>
+
+        <h2>Preferences</h2>
+        <div class="card">
+          <div class="input-group">
+            <label>Favorite Cuisines</label>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <div class="chip active">Turkish</div>
+              <div class="chip active">Italian</div>
+              <div class="chip active">Seafood</div>
+              <div class="chip">Japanese</div>
+              <div class="chip">Mexican</div>
+              <div class="chip">Indian</div>
+              <div class="chip">French</div>
+              <div class="chip">Korean</div>
+            </div>
+          </div>
+          <div style="margin-top: 14px;">
+            <div class="form-row">
+              <div class="input-group">
+                <label>Default Budget (USD)</label>
+                <input type="number" value="500">
+              </div>
+              <div class="input-group">
+                <label>Language</label>
+                <select>
+                  <option selected>English</option>
+                  <option>Türkçe</option>
+                </select>
+              </div>
+              <div class="input-group">
+                <label>Default Audience</label>
+                <select>
+                  <option>Any</option>
+                  <option selected>Adult</option>
+                  <option>Family</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 10px;">
+            <button class="btn btn-primary btn-sm">Save Preferences</button>
+          </div>
+        </div>
+
+        <div style="margin-top: 24px;">
+          <h2>Liked Places</h2>
+          <div class="place-card" style="cursor: default;">
+            <div class="place-header">
+              <div class="place-info" style="display: flex; align-items: center; gap: 12px;">
+                <div style="font-size: 24px;">❤️</div>
+                <div>
+                  <div class="place-name">Çiya Sofrası</div>
+                  <div class="place-meta">
+                    <span>⭐ 4.6</span>
+                    <span>📍 Kadiköy</span>
+                    <span>Visited 2x</span>
+                    <span>Your rating: ⭐⭐⭐⭐⭐</span>
+                  </div>
+                </div>
+              </div>
+              <div class="action-group">
+                <button class="action-btn">📍 Directions</button>
+                <button class="action-btn" style="color: var(--red);">🗑️ Remove</button>
+              </div>
+            </div>
+          </div>
+          <div class="place-card" style="cursor: default;">
+            <div class="place-header">
+              <div class="place-info" style="display: flex; align-items: center; gap: 12px;">
+                <div style="font-size: 24px;">❤️</div>
+                <div>
+                  <div class="place-name">Karaköy Lokantası</div>
+                  <div class="place-meta">
+                    <span>⭐ 4.5</span>
+                    <span>📍 Karaköy</span>
+                    <span>Visited 1x</span>
+                    <span>Your rating: ⭐⭐⭐⭐</span>
+                  </div>
+                </div>
+              </div>
+              <div class="action-group">
+                <button class="action-btn">📍 Directions</button>
+                <button class="action-btn" style="color: var(--red);">🗑️ Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HISTORY PAGE -->
+      <div class="content-page" id="page-history">
+        <h1>History</h1>
+        <p class="subtitle">Your recent interactions and discoveries</p>
+
+        <div class="tab-bar">
+          <div class="tab-item active">All</div>
+          <div class="tab-item">Videos</div>
+          <div class="tab-item">Recommendations</div>
+          <div class="tab-item">Trips</div>
+        </div>
+
+        <div class="card">
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">❤️</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Liked <strong>Çiya Sofrası</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Rated 5/5 · Kadiköy, Istanbul</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">2 hours ago</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 6px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">📍</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Searched <strong>Kadiköy restaurants</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Foodie profile · 10 results</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">2 hours ago</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 6px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">▶️</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Summarized <strong>Istanbul Hidden Gems</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">18:42 · Turkish → English</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">2 hours ago</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 6px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">👎</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Disliked <strong>Tourist Trap Restaurant</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Sultanahmet, Istanbul</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">Yesterday</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 6px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">🗓️</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Generated plan for <strong>Cappadocia</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">3 days · $500 budget</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">2 days ago</span>
+          </div>
+          <div style="height: 1px; background: var(--divider); margin: 6px 0;"></div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0;">
+            <div style="font-size: 20px;">✅</div>
+            <div style="flex: 1;">
+              <div style="font-size: 13px; font-weight: 500;">Visited <strong>Karaköy Lokantası</strong></div>
+              <div style="font-size: 11px; color: var(--text-secondary);">Rated 4/5 · Karaköy, Istanbul</div>
+            </div>
+            <span style="font-size: 11px; color: var(--text-tertiary);">3 days ago</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS PAGE -->
+      <div class="content-page" id="page-settings">
+        <h1>Settings</h1>
+        <p class="subtitle">Configure APIs, language, and AI features</p>
+
+        <h3 style="margin-top: 20px; margin-bottom: 8px;">General</h3>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">Language</div>
+              <div class="sr-desc">Interface and output language</div>
+            </div>
+            <div class="sr-right">
+              <select>
+                <option selected>English</option>
+                <option>Türkçe</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">Appearance</div>
+              <div class="sr-desc">App theme</div>
+            </div>
+            <div class="sr-right">
+              <select>
+                <option>System</option>
+                <option selected>Dark</option>
+                <option>Light</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 20px; margin-bottom: 8px;">LLM Provider</h3>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">Provider</div>
+              <div class="sr-desc">AI model for summaries, translations, and reranking</div>
+            </div>
+            <div class="sr-right">
+              <select>
+                <option selected>OpenAI (GPT-4o)</option>
+                <option>Anthropic (Claude Sonnet)</option>
+                <option>Ollama (Local)</option>
+              </select>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">API Key</div>
+              <div class="sr-desc">Stored securely in macOS Keychain</div>
+            </div>
+            <div class="sr-right">
+              <input type="text" value="sk-••••••••••••••••3xQ7" style="width: 220px; font-size: 12px;">
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">Model</div>
+              <div class="sr-desc">Specific model version</div>
+            </div>
+            <div class="sr-right">
+              <select style="width: 180px;">
+                <option selected>gpt-4o</option>
+                <option>gpt-4o-mini</option>
+                <option>gpt-4-turbo</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 20px; margin-bottom: 8px;">Google Maps</h3>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">API Key</div>
+              <div class="sr-desc">For geocoding, places search, and place details</div>
+            </div>
+            <div class="sr-right">
+              <input type="text" value="AIza••••••••••••••••••yB4" style="width: 220px; font-size: 12px;">
+            </div>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 20px; margin-bottom: 8px;">AI Features</h3>
+        <div class="settings-group">
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">LLM Reranking</div>
+              <div class="toggle-desc">Use AI to reorder top results for better relevance</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Pros/Cons Summaries</div>
+              <div class="toggle-desc">AI-generated pros and cons from reviews</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Aspect Tagging</div>
+              <div class="toggle-desc">Extract atmosphere, service, and vibe tags from reviews</div>
+            </div>
+            <div class="toggle" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Price Estimation</div>
+              <div class="toggle-desc">Estimate missing price levels using AI</div>
+            </div>
+            <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+          </div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Query Parsing</div>
+              <div class="toggle-desc">Parse free-form queries into structured preferences</div>
+            </div>
+            <div class="toggle" onclick="this.classList.toggle('on')"></div>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 20px; margin-bottom: 8px;">Cache</h3>
+        <div class="settings-group">
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">Places Cache</div>
+              <div class="sr-desc">SQLite cache for Google Maps API responses</div>
+            </div>
+            <div class="sr-right">
+              <span style="font-size: 12px; color: var(--text-secondary); margin-right: 8px;">2.4 MB · 847 entries</span>
+              <button class="btn btn-secondary btn-sm">Clear</button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div class="sr-left">
+              <div class="sr-label">LLM Cache</div>
+              <div class="sr-desc">Cached pros/cons and aspect tags</div>
+            </div>
+            <div class="sr-right">
+              <span style="font-size: 12px; color: var(--text-secondary); margin-right: 8px;">156 KB · 42 entries</span>
+              <button class="btn btn-secondary btn-sm">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main-layout -->
+</div><!-- /window -->
+
+<!-- Design Notes -->
+<div style="max-width: 1120px; margin: 0 auto;">
+  <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; font-size: 13px;">
+    <h2 style="margin-bottom: 14px;">SwiftUI Architecture Notes</h2>
+    <div class="grid-2">
+      <div>
+        <h3 style="color: var(--accent);">Navigation</h3>
+        <ul style="padding-left: 16px; line-height: 1.8; color: var(--text-secondary);">
+          <li><code>NavigationSplitView</code> with sidebar + detail</li>
+          <li>Sidebar uses <code>List</code> with <code>NavigationLink</code></li>
+          <li>SF Symbols replace emoji in production</li>
+          <li>Supports both macOS sidebar and iOS tab bar</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent);">Data Flow</h3>
+        <ul style="padding-left: 16px; line-height: 1.8; color: var(--text-secondary);">
+          <li><code>@Observable</code> view models per feature</li>
+          <li><code>SwiftData</code> for profile + history persistence</li>
+          <li>Existing Python backend via embedded server or Swift rewrite</li>
+          <li>Async/await for all API calls with progress</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent);">Key Views</h3>
+        <ul style="padding-left: 16px; line-height: 1.8; color: var(--text-secondary);">
+          <li><code>HomeView</code> — quick actions + recent activity</li>
+          <li><code>SummarizerView</code> — URL input, step progress, result tabs</li>
+          <li><code>RecommendView</code> — filters, map, scored place cards</li>
+          <li><code>PlannerView</code> — config form, day-by-day timeline</li>
+          <li><code>ProfileView</code> — preferences, liked places, history</li>
+          <li><code>SettingsView</code> — API keys, toggles, cache management</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="color: var(--accent);">Platform Integration</h3>
+        <ul style="padding-left: 16px; line-height: 1.8; color: var(--text-secondary);">
+          <li><code>MapKit</code> for native map with place pins</li>
+          <li><code>Keychain Services</code> for secure API key storage</li>
+          <li><code>NLLanguageRecognizer</code> for language detection</li>
+          <li>Universal app: macOS + iOS with adaptive layout</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /flex container -->
+
+<script>
+  // Navigation
+  function navigateTo(pageId) {
+    document.querySelectorAll('.content-page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
+
+    const page = document.getElementById('page-' + pageId);
+    if (page) {
+      page.classList.add('active');
+      page.style.animation = 'none';
+      page.offsetHeight; // trigger reflow
+      page.style.animation = 'fadeIn 0.2s ease';
+    }
+
+    const sidebarItem = document.querySelector(`.sidebar-item[data-page="${pageId}"]`);
+    if (sidebarItem) sidebarItem.classList.add('active');
+  }
+
+  document.querySelectorAll('.sidebar-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const page = item.dataset.page;
+      if (page) navigateTo(page);
+    });
+  });
+
+  // Browse mode switching (Recommendations page)
+  function switchBrowseMode(mode) {
+    const tabs = document.querySelectorAll('#recommend-tabs .tab-item');
+    tabs.forEach(t => t.classList.remove('active'));
+    if (mode === 'types') {
+      tabs[0].classList.add('active');
+      document.getElementById('browse-types').style.display = 'block';
+      document.getElementById('browse-cats').style.display = 'none';
+    } else {
+      tabs[1].classList.add('active');
+      document.getElementById('browse-types').style.display = 'none';
+      document.getElementById('browse-cats').style.display = 'block';
+    }
+  }
+
+  // Tab switching
+  function switchResultTab(el, tabId) {
+    el.parentElement.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+
+    document.getElementById('summary-tab').style.display = 'none';
+    document.getElementById('translation-tab').style.display = 'none';
+    document.getElementById(tabId).style.display = 'block';
+  }
+
+  // Chip toggling
+  document.querySelectorAll('.filter-bar .chip').forEach(chip => {
+    chip.addEventListener('click', () => chip.classList.toggle('active'));
+  });
+  document.querySelectorAll('.cat-tile').forEach(tile => {
+    tile.addEventListener('click', () => tile.classList.toggle('selected'));
+  });
+
+  // Show the summarize result by default for demo purposes
+  setTimeout(() => {
+    const resultEl = document.getElementById('summarize-result');
+    if (resultEl) resultEl.style.display = 'block';
+  }, 100);
+</script>
+</body>
+</html>

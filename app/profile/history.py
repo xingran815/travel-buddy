@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-ACTIONS = ("liked", "disliked", "visited")
+ACTIONS = ("liked", "disliked", "visited", "summarized", "searched")
 
 
 @dataclass

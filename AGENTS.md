@@ -40,6 +40,23 @@ pytest -m "not smoke"                   # explicit exclusion (same as bare pytes
 
 Both share the same backend modules. The interactive menu lives in `app/ui/menu.py`.
 
+## HTTP Server + SwiftUI Client
+
+There is a third way to drive the same backend: a FastAPI server consumed by a native macOS SwiftUI app.
+
+- **Server**: `app/server/main.py` defines the FastAPI `app` (title "TravelBuddy API"); routers under `app/server/routers/` are mounted under `/api` (`summarize`, `recommend`, `planner`, `profile`, `settings`). `main.py` has **no `__main__` runner** — launch with uvicorn:
+  ```bash
+  venv/bin/python -m uvicorn app.server.main:app --host 127.0.0.1 --port 8745
+  ```
+  Endpoints reuse the same backend functions (e.g. `recommend_by_categories`, `recommend_places`); request/response shapes are Pydantic models in `app/server/schemas.py`. The category endpoint `POST /api/recommend/categories` already accepts every refinement field (`max_price`, `audience`, `indoor_outdoor`, `vibe`, `estimate_missing_price`, `llm_*`, …).
+- **SwiftUI client**: `TravelBuddy/` (macOS app). Build/test via SwiftPM — **not** the project venv:
+  ```bash
+  cd TravelBuddy && swift build && swift test
+  ```
+  Tests live in `TravelBuddy/Tests/TravelBuddyKitTests/`. The app auto-launches the backend itself via `Services/BackendManager.swift` (spawns the uvicorn command above on port **8745**; `baseURL = http://127.0.0.1:8745`).
+- **Parity contract**: Swift `Codable` request structs (e.g. `CategoryRecommendRequest`, `RecommendRequest` in `Models/Place.swift`) must mirror the Pydantic schemas field-for-field, or `JSONDecoder` silently drops mismatched keys. When a feature exists in the CLI (`app/ui/menu.py` / `prompts.py`) but feels missing in the app, the gap is usually **client-side UI wiring** (the view-model not sending a field the server already accepts), not the backend.
+- **Platform/API note**: package targets `.macOS(.v14)`. Map views use the macOS-14 `Map(position:)` + `MapContentBuilder` (`Annotation`) API — do **not** reintroduce the deprecated `Map(coordinateRegion:annotationItems:)` / `MapAnnotation`. `RecommendViewModel.mapRegion` is a `MapCameraPosition`.
+
 ## Architecture Gotchas
 
 - `download_audio()` returns `tuple[str, str]` — `(filepath, video_id)`, not just a path

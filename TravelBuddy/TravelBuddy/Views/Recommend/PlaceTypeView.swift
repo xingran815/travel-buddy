@@ -44,17 +44,14 @@ struct PlaceTypeView: View {
             } else {
                 // Map + results split
                 VSplitView {
-                    Map(coordinateRegion: $vm.mapRegion, annotationItems: vm.places) { place in
-                        MapAnnotation(coordinate: CLLocationCoordinate2D(
-                            latitude: place.lat ?? 0, longitude: place.lng ?? 0)) {
-                            if place.lat != nil {
-                                VStack(spacing: 2) {
+                    Map(position: $vm.mapRegion) {
+                        ForEach(vm.places) { place in
+                            if let lat = place.lat, let lng = place.lng {
+                                Annotation(place.name, coordinate: CLLocationCoordinate2D(
+                                    latitude: lat, longitude: lng)) {
                                     Image(systemName: "mappin.circle.fill")
                                         .foregroundStyle(.red)
                                         .font(.title2)
-                                    Text(place.name)
-                                        .font(.system(size: 9))
-                                        .fixedSize()
                                 }
                             }
                         }
