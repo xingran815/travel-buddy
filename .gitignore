@@ -34,5 +34,12 @@ evals/
 # OS
 .DS_Store
 
+# Swift / Xcode
+TravelBuddy/.build/
+TravelBuddy/.swiftpm/
+TravelBuddy/**/xcuserdata/
+TravelBuddy/**/*.xcuserstate
+TravelBuddy/DerivedData/
+
 # Claude Code
 .claude/

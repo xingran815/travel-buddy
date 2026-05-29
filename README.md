@@ -249,6 +249,14 @@ python main.py plan "Istanbul" --budget 500 --days 3 --preferences "history,food
 - **Via command line:** Add `--lang en` or `--lang tr`
 - **Permanently:** Set `APP_LANG=en` or `APP_LANG=tr` in your `.env` file
 
+## SwiftUI macOS Client
+
+A native macOS client lives under [`TravelBuddy/`](TravelBuddy/). It talks to the FastAPI backend in this repo (`app/server/`). Open `TravelBuddy/TravelBuddy.xcodeproj` in Xcode 16+ to build and run. Unit tests for the client's model decoding and score-breakdown logic run via Swift Package Manager:
+
+```bash
+cd TravelBuddy && swift test
+```
+
 ## Configuration
 
 All settings are in the `.env` file. Here are the key options:
