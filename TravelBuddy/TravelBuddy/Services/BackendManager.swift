@@ -20,6 +20,13 @@ class BackendManager: ObservableObject {
 
     nonisolated private static let projectRoot: URL = {
         let fm = FileManager.default
+        // 0. Bundled backend inside the .app (distribution builds)
+        if let resourceURL = Bundle.main.resourceURL {
+            let bundled = resourceURL.appendingPathComponent("backend")
+            if fm.fileExists(atPath: bundled.appendingPathComponent("venv/bin/python").path) {
+                return bundled
+            }
+        }
         // 1. UserDefaults override wins
         if let stored = UserDefaults.standard.string(forKey: "projectRoot"),
            fm.fileExists(atPath: stored) {
