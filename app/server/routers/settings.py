@@ -12,6 +12,7 @@ from dotenv import load_dotenv, set_key
 from fastapi import APIRouter
 
 import app.config as config
+from app.places.cache import PlacesCache
 from app.server.schemas import (
     CacheClearRequest,
     CacheStatsResponse,
@@ -122,10 +123,7 @@ def clear_cache(req: CacheClearRequest) -> dict:
         db_path = PROJECT_ROOT / "cache" / "places.sqlite"
         if db_path.exists():
             try:
-                conn = sqlite3.connect(str(db_path))
-                conn.execute("DELETE FROM places_cache")
-                conn.commit()
-                conn.close()
+                PlacesCache(db_path).clear()
                 cleared.append("places")
             except Exception:
                 pass

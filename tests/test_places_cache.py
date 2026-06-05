@@ -122,6 +122,17 @@ class TestEnvVarBypass:
         assert fake_client.geocode.call_count == 1
 
 
+class TestClear:
+    def test_clear_removes_all_entries(self, cache):
+        key = PlacesCache.make_key("geocode", ("Istanbul",), {})
+        cache.set(key, [{"a": 1}], ttl=60)
+        cache.clear()
+        assert cache.get(key) is None
+
+    def test_clear_on_empty_cache_is_noop(self, cache):
+        cache.clear()  # must not raise
+
+
 class TestTTLs:
     def test_ttl_constants_are_distinct(self):
         assert GEOCODE_TTL > SEARCH_TTL
