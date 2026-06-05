@@ -1,3 +1,5 @@
+"""Generate a multi-day travel itinerary from recommendations via the LLM."""
+
 from app.llm.factory import get_provider
 
 
@@ -12,6 +14,12 @@ def generate_plan(
     max_reviews_per_place: int = 3,
     max_review_length: int = 300,
 ) -> str:
+    """Compose a day-by-day itinerary as free-form text in ``lang``.
+
+    Folds the recommended places (with a few capped review excerpts each) and any
+    ``youtube_summary`` into a single prompt and asks the LLM for an itinerary
+    with costs and transport tips that fits ``budget``. Returns the generated
+    plan text."""
     review_text = ""
     if review_results:
         for r in review_results:

@@ -1,3 +1,10 @@
+"""Summarize endpoint: streams YouTube download → transcribe → translate → summarize.
+
+Progress is pushed to the client as server-sent events (one per pipeline stage),
+ending with the full summary payload. A lock serializes transcription so
+concurrent requests don't contend for the (memory-heavy) Whisper model.
+"""
+
 import asyncio
 import json
 
@@ -15,6 +22,7 @@ _transcribe_lock = asyncio.Lock()
 
 
 def _sse_data(step: str, progress: float, data: dict | None = None) -> str:
+    """Serialize one ``{step, progress, data?}`` SSE payload as a JSON string."""
     payload = {"step": step, "progress": progress}
     if data is not None:
         payload["data"] = data
@@ -23,6 +31,7 @@ def _sse_data(step: str, progress: float, data: dict | None = None) -> str:
 
 @router.post("/summarize")
 async def summarize_video(req: SummarizeRequest):
+    """Stream the summarization pipeline for a video URL as SSE progress events."""
     async def generate():
         video_id = None
         try:

@@ -1,3 +1,5 @@
+"""Tests for user-profile persistence: history recording, compaction, and JSON load/save."""
+
 import json
 import time
 from pathlib import Path

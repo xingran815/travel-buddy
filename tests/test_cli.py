@@ -1,3 +1,5 @@
+"""Tests for the Click CLI commands (summarize/recommend/plan) and option wiring."""
+
 from unittest.mock import patch, MagicMock
 from click.testing import CliRunner
 from main import cli

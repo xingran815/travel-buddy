@@ -1,3 +1,5 @@
+"""Tests for the category taxonomy and its mapping to Google Place types."""
+
 from unittest.mock import patch
 
 import pytest

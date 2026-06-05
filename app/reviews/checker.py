@@ -239,6 +239,12 @@ def _search_all_types(
     max_price: int | None,
     search_points: list[tuple[tuple[float, float], int]],
 ) -> list[dict]:
+    """Search every (place type × search point) combination and concatenate.
+
+    Builds one search task per type and grid point (or one text search per type
+    when there are no points), running them concurrently — up to 10 at a time —
+    since each is an independent Places API call. Results are returned unmerged;
+    ``_deduplicate`` collapses the overlap from neighbouring grid points."""
     tasks = []
     if search_points:
         for pt in types:
@@ -280,6 +286,7 @@ def _emit_timing(
     cache_hits: int,
     cache_misses: int,
 ) -> None:
+    """Print a one-line per-stage timing + cache-hit breakdown to stderr."""
     parts = [
         f"geocode {timings.get('geocode', 0):.1f}s",
         f"search {timings.get('search', 0):.1f}s ({n_types}x)",

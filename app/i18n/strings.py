@@ -1,3 +1,9 @@
+"""Bilingual (English/Turkish) UI string table and the ``t()`` lookup helper.
+
+``STRINGS`` maps a message key to a ``{"en": ..., "tr": ...}`` pair; ``t()`` is
+the single accessor used throughout the CLI/server for localized text.
+"""
+
 STRINGS = {
     "welcome": {
         "en": "Welcome to Travel Recommender!",
@@ -305,6 +311,9 @@ STRINGS = {
 
 
 def t(key: str, lang: str = "tr", **kwargs) -> str:
+    """Look up a localized string, falling back to English then the raw key.
+
+    Any ``kwargs`` are applied with ``str.format`` for placeholder substitution."""
     entry = STRINGS.get(key, {})
     text = entry.get(lang, entry.get("en", key))
     if kwargs:

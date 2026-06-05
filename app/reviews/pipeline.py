@@ -1,3 +1,12 @@
+"""Batch scoring driver: score, scale, sort, and patch missing prices.
+
+Wraps ``app/reviews/scoring.composite_score`` over a list of candidate places.
+Scores and breakdowns are scaled from the internal ``0–1`` range to the
+user-facing ``0–5`` range here, results are sorted best-first, and
+``fill_missing_prices_and_rescore`` does a second LLM-assisted pass to recover
+``price_level`` for places Google left blank.
+"""
+
 from app.reviews import factors
 from app.reviews.scoring import composite_score
 
@@ -16,6 +25,13 @@ def score_all(
     aspects_cache: dict[str, dict[str, float]],
     user_profile,
 ) -> list[dict]:
+    """Score every candidate, attach scaled fields, and sort best-first.
+
+    Each returned place is the original dict plus ``score`` (0–5),
+    ``score_breakdown`` and ``score_raw`` (scaled per-factor values),
+    ``audience_tag``, ``distance_km`` from ``center``, and the ``d_half_km`` used
+    for distance decay. ``aspects_cache`` supplies per-place LLM aspect scores
+    keyed by ``place_id``."""
     scored = []
     for p in all_places:
         result = composite_score(
@@ -54,6 +70,13 @@ def fill_missing_prices_and_rescore(
     aspects_cache: dict[str, dict[str, float]],
     user_profile,
 ) -> None:
+    """Estimate missing price levels via the LLM, then rescore in place.
+
+    Finds results that have reviews but no Google ``price_level``, asks
+    ``estimate_price_levels_batch`` to infer one (1–4) from the review text,
+    marks them ``price_level_source="llm"``, and recomputes ``score`` /
+    breakdowns for just those places before re-sorting. Mutates ``results``;
+    no-op when nothing is missing a price."""
     needing = [p for p in results if p.get("price_level") is None and p.get("reviews")]
     if not needing:
         return

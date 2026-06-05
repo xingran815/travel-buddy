@@ -1,3 +1,10 @@
+"""Maps each place type to the preference prompts worth asking for it.
+
+Drives the interactive recommend flow: a restaurant asks about cuisine/budget, a
+museum about topic, a hotel about nights/rooms, etc. ``prompts_for_types`` merges
+these when several types are selected at once.
+"""
+
 PROMPTS_BY_TYPE: dict[str, list[str]] = {
     "restaurant":         ["cuisine", "audience", "people", "budget"],
     "cafe":               ["cuisine", "audience", "people"],

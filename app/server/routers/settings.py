@@ -1,5 +1,10 @@
+"""Settings and cache-management endpoints (health, settings, cache stats/clear).
+
+Settings updates are persisted to the project ``.env`` and the in-memory
+``app.config`` values are refreshed so they take effect without a restart.
+"""
+
 import json
-import os
 import sqlite3
 from pathlib import Path
 
@@ -7,6 +12,7 @@ from dotenv import load_dotenv, set_key
 from fastapi import APIRouter
 
 import app.config as config
+from app.places.cache import PlacesCache
 from app.server.schemas import (
     CacheClearRequest,
     CacheStatsResponse,
@@ -23,11 +29,13 @@ ENV_PATH = PROJECT_ROOT / ".env"
 
 @router.get("/health")
 def health() -> HealthResponse:
+    """Liveness probe returning the static status/version payload."""
     return HealthResponse()
 
 
 @router.get("/settings")
 def get_settings() -> SettingsResponse:
+    """Return current settings; API keys are reported only as set/unset booleans."""
     return SettingsResponse(
         llm_provider=config.LLM_PROVIDER,
         llm_model=config.LLM_MODEL,
@@ -40,6 +48,7 @@ def get_settings() -> SettingsResponse:
 
 @router.put("/settings")
 def update_settings(req: SettingsUpdate) -> SettingsResponse:
+    """Persist the provided settings to ``.env`` and refresh ``app.config`` live."""
     env_map = {
         "llm_provider": "LLM_PROVIDER",
         "llm_api_key": "LLM_API_KEY",
@@ -70,6 +79,7 @@ def update_settings(req: SettingsUpdate) -> SettingsResponse:
 
 @router.get("/cache/stats")
 def cache_stats() -> CacheStatsResponse:
+    """Report on-disk sizes/entry counts for the places, pros-cons, and aspects caches."""
     stats = CacheStatsResponse()
 
     db_path = PROJECT_ROOT / "cache" / "places.sqlite"
@@ -104,16 +114,16 @@ def cache_stats() -> CacheStatsResponse:
 
 @router.post("/cache/clear")
 def clear_cache(req: CacheClearRequest) -> dict:
+    """Clear the places cache, the LLM JSON caches, or both per ``req.target``.
+
+    Returns the list of cache targets that were actually cleared."""
     cleared: list[str] = []
 
     if req.target in ("places", "all"):
         db_path = PROJECT_ROOT / "cache" / "places.sqlite"
         if db_path.exists():
             try:
-                conn = sqlite3.connect(str(db_path))
-                conn.execute("DELETE FROM cache")
-                conn.commit()
-                conn.close()
+                PlacesCache(db_path).clear()
                 cleared.append("places")
             except Exception:
                 pass

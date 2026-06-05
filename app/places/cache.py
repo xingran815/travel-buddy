@@ -1,3 +1,13 @@
+"""SQLite-backed cache for Google Maps API responses.
+
+Caching matters here because the Places API is billed per call and rate-limited.
+``PlacesCache`` is a small key/value store with per-entry TTLs; ``CachedGmaps``
+wraps a ``googlemaps.Client`` and transparently caches the four read methods the
+app uses (``geocode``, ``places``, ``places_nearby``, ``place``) while passing
+everything else through. TTLs differ by volatility: geocoding results are stable
+for a week, search/detail results for a day.
+"""
+
 import hashlib
 import json
 import os
@@ -15,6 +25,8 @@ DETAILS_TTL = 86400
 
 
 class PlacesCache:
+    """Thread-safe SQLite key/value store of API responses with TTL expiry."""
+
     def __init__(self, path: str | Path = DEFAULT_CACHE_PATH) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +42,7 @@ class PlacesCache:
 
     @staticmethod
     def make_key(method: str, args: tuple, kwargs: dict) -> str:
+        """Build a stable SHA-256 cache key from a method name and its arguments."""
         payload = json.dumps(
             {"m": method, "a": list(args), "k": kwargs},
             sort_keys=True,
@@ -39,6 +52,7 @@ class PlacesCache:
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def get(self, key: str, now: float | None = None) -> Any | None:
+        """Return the cached value for ``key`` if present and unexpired, else ``None``."""
         ts = now if now is not None else time.time()
         with self._lock:
             row = self._conn.execute(
@@ -53,6 +67,7 @@ class PlacesCache:
         return json.loads(response)
 
     def set(self, key: str, response: Any, ttl: float, now: float | None = None) -> None:
+        """Store ``response`` under ``key`` with a ``ttl`` (seconds), replacing any prior entry."""
         ts = now if now is not None else time.time()
         with self._lock:
             self._conn.execute(
@@ -61,15 +76,18 @@ class PlacesCache:
             )
 
     def clear(self) -> None:
+        """Delete every cached entry."""
         with self._lock:
             self._conn.execute("DELETE FROM places_cache")
 
     def close(self) -> None:
+        """Close the underlying SQLite connection."""
         with self._lock:
             self._conn.close()
 
 
 def _cache_enabled_default() -> bool:
+    """Whether caching is on by default — disabled via ``PLACES_CACHE=off`` (or 0/false/no)."""
     return os.getenv("PLACES_CACHE", "on").lower() not in {"off", "0", "false", "no"}
 
 
@@ -86,21 +104,29 @@ class CachedGmaps:
         self.misses = 0
 
     def geocode(self, *args, **kwargs):
+        """Cached ``geocode`` call (7-day TTL)."""
         return self._call("geocode", args, kwargs, ttl=GEOCODE_TTL)
 
     def places(self, *args, **kwargs):
+        """Cached text ``places`` search (1-day TTL)."""
         return self._call("places", args, kwargs, ttl=SEARCH_TTL)
 
     def places_nearby(self, *args, **kwargs):
+        """Cached ``places_nearby`` search (1-day TTL)."""
         return self._call("places_nearby", args, kwargs, ttl=SEARCH_TTL)
 
     def place(self, *args, **kwargs):
+        """Cached ``place`` details lookup (1-day TTL)."""
         return self._call("place", args, kwargs, ttl=DETAILS_TTL)
 
     def __getattr__(self, name):
+        """Delegate any non-cached attribute/method to the wrapped client."""
         return getattr(self._client, name)
 
     def _call(self, method: str, args: tuple, kwargs: dict, ttl: float):
+        """Return a cached response or call through, recording a hit/miss.
+
+        Bypasses the cache entirely when ``self.enabled`` is false."""
         impl = getattr(self._client, method)
         if not self.enabled:
             return impl(*args, **kwargs)

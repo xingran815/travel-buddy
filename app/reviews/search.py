@@ -1,3 +1,22 @@
+"""Google Places access layer: geocoding, search-grid construction, and lookups.
+
+This module is the only one that talks to the Google Maps API. It wraps the
+``googlemaps`` client in ``app/places/cache.CachedGmaps`` for transparent SQLite
+caching and exposes the pieces the orchestrator (``app/reviews/checker.py``)
+composes:
+
+* ``_geocode_region`` turns a region name into a centre point plus a viewport-
+  derived distance-decay half-life (``d_half``) and search radius.
+* ``_make_search_grid`` spreads that radius into up to five overlapping probe
+  points so a single large region doesn't return only city-centre results.
+* ``search_places`` runs one nearby/text search; ``get_place_details`` and
+  ``_fetch_details_batch`` enrich the chosen candidates with reviews/contact info.
+
+The geocode-then-``places_nearby`` ordering is deliberate: searching by viewport
+radius around the geocoded centre gives far better geographic spread than a bare
+``"<type> in <region>"`` text query.
+"""
+
 import math
 import sys
 import threading
@@ -16,6 +35,10 @@ _CLIENT_HOLDER: list[CachedGmaps] = []
 
 
 def get_client() -> CachedGmaps:
+    """Return the process-wide cached Maps client, building it once on demand.
+
+    Double-checked locking keeps a single ``CachedGmaps`` shared across the
+    worker threads used for parallel search/detail calls."""
     if not _CLIENT_HOLDER:
         with _CLIENT_LOCK:
             if not _CLIENT_HOLDER:
@@ -24,6 +47,11 @@ def get_client() -> CachedGmaps:
 
 
 def _deduplicate(places: list[dict]) -> list[dict]:
+    """Drop duplicate places by ``place_id`` and by normalised name.
+
+    Overlapping grid points and chains return the same venue repeatedly; names
+    are lower-cased and stripped of any ``"#<branch>"`` suffix before comparison,
+    keeping the first occurrence."""
     seen_ids = set()
     seen_names = set()
     unique = []
@@ -40,6 +68,11 @@ def _deduplicate(places: list[dict]) -> list[dict]:
 
 
 def _filter_by_price(places: list[dict], min_price: int | None = None, max_price: int | None = None) -> list[dict]:
+    """Keep places within the ``[min_price, max_price]`` Google price levels.
+
+    A ``min_price`` excludes places with an unknown price level; ``max_price``
+    keeps unknowns (so budget filtering doesn't silently drop unpriced venues
+    that later get an LLM-estimated level)."""
     filtered = []
     for p in places:
         price = p.get("price_level")
@@ -69,6 +102,7 @@ DEFAULT_D_HALF_KM = 3.0
 
 
 def _candidate_summary(c: dict) -> str:
+    """Format a geocode candidate as ``"address (lat, lng)"`` for prompts/logs."""
     geom = c.get("geometry") or {}
     loc = geom.get("location") or {}
     addr = c.get("formatted_address") or "?"
@@ -81,6 +115,10 @@ def _candidate_summary(c: dict) -> str:
 
 
 def _pick_geocode_candidate(candidates: list[dict], region: str) -> dict:
+    """Choose among ambiguous geocode matches for ``region``.
+
+    Interactively prompts the user when stdin is a TTY; otherwise logs the
+    ambiguity and falls back to Google's first (highest-ranked) candidate."""
     if len(candidates) <= 1:
         return candidates[0]
     if not sys.stdin.isatty():
@@ -105,6 +143,14 @@ MAX_SEARCH_RADIUS_M = 50_000
 
 
 def _geocode_region(region: str) -> tuple[tuple[float, float] | None, float, int | None]:
+    """Geocode a region into ``(center, d_half_km, search_radius_m)``.
+
+    Derives both tuning knobs from the result's viewport: ``d_half`` (distance-
+    decay half-life) is a third of the viewport diagonal, and the search radius
+    is half the diagonal, capped at ``MAX_SEARCH_RADIUS_M`` (50 km). When no
+    viewport is available it falls back to ``DEFAULT_D_HALF_KM`` and no radius
+    (callers then do a plain text search). Any API/parse error degrades to
+    ``(None, DEFAULT_D_HALF_KM, None)`` rather than raising."""
     try:
         gmaps = get_client()
         results = gmaps.geocode(region)
@@ -139,6 +185,13 @@ def _make_search_grid(
     center: tuple[float, float],
     search_radius_m: int,
 ) -> list[tuple[tuple[float, float], int]]:
+    """Build the ``(point, radius)`` probes for a region's nearby searches.
+
+    Small regions (≤ ``_GRID_MIN_RADIUS_M``) get a single centre probe. Larger
+    ones get a 5-point cross — centre plus four corners offset by 40% of the
+    radius — so coverage doesn't collapse to the city centre. Offsets convert
+    metres to degrees using the standard ~111.32 km/degree, adjusting longitude
+    by ``cos(latitude)``. Each probe uses half the region radius."""
     sub_radius = int(min(search_radius_m * 0.5, MAX_SEARCH_RADIUS_M))
     if search_radius_m <= _GRID_MIN_RADIUS_M:
         return [(center, sub_radius)]
@@ -164,6 +217,14 @@ def search_places(
     location: tuple[float, float] | None = None,
     radius: int | None = None,
 ) -> list[dict]:
+    """Search one place type and return normalised candidate dicts.
+
+    Uses ``places_nearby`` (viewport-bounded) when a ``location`` and ``radius``
+    are given, otherwise a ``"<type> in <region>"`` text search. Paginates up to
+    ``max_pages`` (Google requires a ~2s pause before each next-page token),
+    drops permanently-closed venues, normalises lat/lng, and applies the
+    price-level filter. Each result is flattened to the common candidate schema
+    consumed by the scorer."""
     gmaps = get_client()
     query = f"{place_type} in {region}"
     all_raw = []
@@ -213,6 +274,12 @@ def search_places(
 
 
 def get_place_details(place_id: str) -> dict:
+    """Fetch enriched details for one place: reviews, contact info, geometry.
+
+    Requests only the fields the pipeline uses and returns them flattened, with
+    up to five reviews normalised to ``{author, rating, text, time, language}``.
+    Used to enrich the top candidates after scoring (a Details call is billed
+    separately from search, so only the shortlist is fetched)."""
     gmaps = get_client()
     result = gmaps.place(
         place_id=place_id,
@@ -266,6 +333,10 @@ def get_place_details(place_id: str) -> dict:
 
 
 def _fetch_details_batch(place_ids: list[str], max_workers: int | None = None) -> dict[str, dict]:
+    """Fetch details for many places concurrently, keyed by ``place_id``.
+
+    Runs up to 10 ``get_place_details`` calls in parallel (each is independent
+    and I/O-bound). Returns ``{}`` for an empty input."""
     if not place_ids:
         return {}
     workers = max_workers if max_workers is not None else min(len(place_ids), 10)

@@ -1,8 +1,18 @@
+"""Browsable categories that map friendly names to Google Places types.
+
+Each ``Category`` (``food``, ``sights``, ``museums`` …) bundles the Google Place
+types searched when the user browses by category rather than typing a specific
+place type. ``recommend_by_categories`` in ``app/reviews/checker.py`` fans out
+one search per category using these type tuples.
+"""
+
 from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
 class Category:
+    """A browsable category: an id, the Google types it searches, and a keyword."""
+
     id: str
     google_types: tuple[str, ...]
     keyword: str | None = None
@@ -26,6 +36,7 @@ CATEGORY_ORDER: tuple[str, ...] = (
 
 
 def get_category(cat_id: str) -> Category:
+    """Look up a ``Category`` by id, raising ``ValueError`` if unknown."""
     if cat_id not in CATEGORIES:
         raise ValueError(f"Unknown category {cat_id!r}. Choices: {sorted(CATEGORIES.keys())}")
     return CATEGORIES[cat_id]

@@ -1,3 +1,5 @@
+"""Tests for the composite scoring engine: profile weights and the individual per-factor scores."""
+
 import math
 import time
 import pytest

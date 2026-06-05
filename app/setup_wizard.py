@@ -1,3 +1,11 @@
+"""Interactive first-run setup that collects missing API keys into ``.env``.
+
+Commands declare which credential *scope* they need (``places``, ``llm``); the
+wizard prompts only for the keys that scope is missing, appends them to ``.env``,
+and asks the user to re-run so the values load. It is a no-op outside a TTY, so
+non-interactive runs fail with the normal missing-key errors instead of hanging.
+"""
+
 import os
 import sys
 from pathlib import Path
@@ -12,11 +20,13 @@ REQUIRED_BY_SCOPE: dict[str, tuple[str, ...]] = {
 
 
 def missing_keys(scope: str) -> list[str]:
+    """Return the env vars required by ``scope`` that are not currently set."""
     needed = REQUIRED_BY_SCOPE.get(scope, ())
     return [k for k in needed if not os.getenv(k)]
 
 
 def _append_to_env(path: Path, values: dict[str, str]) -> None:
+    """Append ``KEY=value`` lines to the ``.env`` at ``path``, preserving existing content."""
     existing = ""
     if path.exists():
         existing = path.read_text(encoding="utf-8")

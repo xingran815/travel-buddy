@@ -1,3 +1,5 @@
+"""Smoke tests that hit the real LLM API for translation and summarization (gated by the 'smoke' marker)."""
+
 import pytest
 from app.llm.client import translate_text, summarize_text
 from app.config import LLM_API_KEY

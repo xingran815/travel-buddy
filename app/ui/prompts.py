@@ -1,3 +1,13 @@
+"""Interactive ``questionary`` prompts that collect recommendation preferences.
+
+The menu flows in ``app.ui.menu`` call these to gather cuisine/budget/audience and
+similar inputs. A data-driven design keeps it compact: ``_TEXT_PROMPTS`` declares
+each text question (label, result key, default, parser) and ``_make_text_handler``
+turns each into a handler, so ``prompts_for_types`` can drive exactly the right
+questions per place type. Throughout, ``None`` means the user cancelled (``q`` or
+Esc) and the caller should abort the flow.
+"""
+
 import questionary
 from app.i18n.strings import t
 from app.reviews.categories import CATEGORY_ORDER
@@ -9,6 +19,7 @@ _QUIT = object()
 
 
 def _ask_text(label: str, default: str = "") -> str | None:
+    """Ask a free-text question; return the answer, or ``None`` on cancel/``q``."""
     value = questionary.text(label, default=default).ask()
     if value is None:
         return None
@@ -18,6 +29,7 @@ def _ask_text(label: str, default: str = "") -> str | None:
 
 
 def _parse_hours(v: str) -> float | None:
+    """Parse an hours string to float, or ``None`` if blank/unparseable."""
     try:
         return float(v) if v.strip() else None
     except ValueError:
@@ -61,6 +73,7 @@ def _ask_choice(prompt_key: str, options: list[tuple[str, object]], lang: str) -
 
 
 def _ask_indoor_outdoor(lang: str) -> dict | None:
+    """Ask the indoor/outdoor/any preference; return ``{"indoor_outdoor": value}``."""
     value = _ask_choice(
         "prompt_indoor_outdoor",
         [("any_choice", None), ("indoor", "indoor"), ("outdoor", "outdoor")],
@@ -70,6 +83,7 @@ def _ask_indoor_outdoor(lang: str) -> dict | None:
 
 
 def _ask_audience(lang: str) -> str | None:
+    """Ask the audience preference, returning ``"family"``/``"adult"``/``None`` (any)."""
     return _ask_choice(
         "prompt_audience",
         [("audience_any", None), ("audience_family", "family"), ("audience_adult", "adult")],
@@ -78,6 +92,7 @@ def _ask_audience(lang: str) -> str | None:
 
 
 def _ask_audience_prompt(lang: str) -> dict | None:
+    """Handler wrapper returning ``{"audience": ...}`` for the prompt dispatch table."""
     return {"audience": _ask_audience(lang)}
 
 
@@ -120,6 +135,7 @@ def _build_filter_choices(
 
 
 def _has_conflicts(selected: list[str], mapping: dict[str, tuple[str, object]]) -> bool:
+    """True if two checkbox picks map to the same pref key (e.g. two budget tiers)."""
     seen_keys: dict[str, int] = {}
     for label in selected:
         key, _ = mapping[label]
@@ -174,6 +190,9 @@ PROMPT_HANDLERS["audience"] = _ask_audience_prompt
 
 
 def _collect_prefs(types: list[str], lang: str) -> dict | None:
+    """Run the prompts relevant to ``types`` and merge them into a prefs dict.
+
+    Returns ``None`` if any prompt is cancelled."""
     prefs: dict = {}
     for key in prompts_for_types(types):
         handler = PROMPT_HANDLERS.get(key)
@@ -187,6 +206,7 @@ def _collect_prefs(types: list[str], lang: str) -> dict | None:
 
 
 def _ask_profile(lang: str) -> str | None:
+    """Ask which scoring profile to use; return its key or ``None`` on cancel."""
     labels = [(t(f"profile_{p}", lang), p) for p in PROFILE_ORDER]
     selected = questionary.select(
         t("select_profile", lang),
@@ -208,6 +228,7 @@ PLACE_TYPE_CHOICES = [
 
 
 def _localized_type_choices(lang: str):
+    """Return ``(display_label, place_type)`` pairs localized to ``lang``."""
     labels = {
         "Restaurant": ("Restaurant" if lang == "en" else "Restoran"),
         "Cafe": ("Cafe" if lang == "en" else "Kafe"),
@@ -220,10 +241,12 @@ def _localized_type_choices(lang: str):
 
 
 def _is_quit(answer) -> bool:
+    """True if the answer is the literal ``q`` (case/space-insensitive)."""
     return answer is not None and answer.strip().lower() == "q"
 
 
 def _prompt_continue(lang: str = "tr"):
+    """Pause for Enter between menu actions; raise ``SystemExit`` if the user types ``q``."""
     msg = "Press Enter to continue, q to quit..." if lang == "en" else "Devam etmek için Enter, çıkmak için q..."
     answer = questionary.text(msg, default="").ask()
     if _is_quit(answer):
@@ -231,6 +254,9 @@ def _prompt_continue(lang: str = "tr"):
 
 
 def _ask_categories(lang: str = "tr") -> list[str] | None:
+    """Multi-select categories; re-asks once if nothing is picked, then gives up.
+
+    Returns the chosen category ids, or ``None`` on cancel / empty selection."""
     from app.ui.display import show_info
     labels = [(t(f"category_{c}", lang), c) for c in CATEGORY_ORDER]
     choices = [label for label, _ in labels]
@@ -249,6 +275,10 @@ def _ask_categories(lang: str = "tr") -> list[str] | None:
 
 
 def _ask_place_types(lang: str = "tr") -> list[str] | None:
+    """Ask for one or several place types (or skip), returning the type list or ``None``.
+
+    Offers single-select, multi-select, or skip; the multi-select re-asks once on
+    an empty pick."""
     choices = _localized_type_choices(lang)
     display_names = [c[0] for c in choices]
 

@@ -1,15 +1,19 @@
+"""Argument-parsing and pretty-printing helpers for the CLI commands."""
+
 import click
 from app.i18n.strings import t
 from app.reviews.profiles import FACTOR_KEYS
 
 
 def _parse_types(types_str: str | None) -> list[str] | None:
+    """Split a comma-separated ``--types`` string into a list, or ``None``."""
     if not types_str:
         return None
     return [t.strip() for t in types_str.split(",") if t.strip()]
 
 
 def _parse_location(location_str: str | None) -> tuple[float, float] | None:
+    """Parse a ``"lat,lng"`` string into a float tuple; raise on bad format."""
     if not location_str:
         return None
     parts = location_str.split(",")
@@ -19,6 +23,7 @@ def _parse_location(location_str: str | None) -> tuple[float, float] | None:
 
 
 def _format_breakdown(breakdown: dict, lang: str) -> str:
+    """Render the per-factor score contributions as a localized ``·``-joined line."""
     parts = []
     for k in FACTOR_KEYS:
         label = t(f"factor_{k}", lang)
@@ -27,6 +32,10 @@ def _format_breakdown(breakdown: dict, lang: str) -> str:
 
 
 def _print_place(i: int, r: dict, lang: str) -> None:
+    """Print one ranked place: score, rating, address, breakdown, and LLM notes.
+
+    Falls back to showing the top few raw reviews only when no LLM pros/cons are
+    present."""
     click.echo(f"\n{i}. {r['name']} — ★ {r.get('score', 0):.2f} / 5")
     click.echo(f"   {'Rating' if lang == 'en' else 'Puan'}: {r.get('rating', 'N/A')}/5")
     click.echo(f"   {'Address' if lang == 'en' else 'Adres'}: {r.get('address', 'N/A')}")

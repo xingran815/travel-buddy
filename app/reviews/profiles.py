@@ -1,3 +1,15 @@
+"""Scoring profiles: the per-factor weight vectors that shape rankings.
+
+A *profile* (``balanced``, ``foodie``, ``budget``, ``atmosphere``) is a set of
+weights over ``FACTOR_KEYS`` that sums to ``1.0``. ``_BASE_PROFILES`` holds the
+human-authored weights; every profile is then rebalanced by ``_with_history`` to
+carve out a fixed slice for the personalisation ``history`` factor. The
+module-load asserts guard the invariant that each profile covers all factors and
+sums to one. ``get_profile`` applies request-time adjustments (dropping unused
+cuisine/audience weight into ``quality``, boosting audience when the user states
+a preference) and renormalises.
+"""
+
 FACTOR_KEYS = (
     "quality",
     "volume",
@@ -36,6 +48,10 @@ AUDIENCE_BOOST = 2.5
 
 
 def _with_history(base: dict[str, float]) -> dict[str, float]:
+    """Scale a base profile down by ``HISTORY_WEIGHT`` and add a history slice.
+
+    Keeps the total at ``1.0`` while reserving a fixed share for the ``history``
+    personalisation factor, which the hand-written base profiles omit."""
     factor = 1.0 - HISTORY_WEIGHT
     weights = {k: v * factor for k, v in base.items()}
     weights["history"] = HISTORY_WEIGHT
@@ -58,6 +74,13 @@ def get_profile(
     has_cuisine: bool = True,
     has_audience: bool = True,
 ) -> dict[str, float]:
+    """Return the (renormalised) weight vector for a named profile.
+
+    When the request has no cuisine or audience preference, that factor's weight
+    is folded into ``quality`` so it doesn't dilute the score with neutral 0.5s.
+    When an audience *is* requested, its weight is boosted by ``AUDIENCE_BOOST``
+    and the rest are shrunk proportionally, then everything is renormalised to
+    sum to ``1.0``. Raises ``ValueError`` for an unknown profile name."""
     key = name or DEFAULT_PROFILE
     if key not in PROFILES:
         raise ValueError(f"Unknown profile {name!r}. Choices: {sorted(PROFILES.keys())}")

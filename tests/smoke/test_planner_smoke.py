@@ -1,3 +1,5 @@
+"""Smoke test that hits the real LLM API to generate an itinerary (gated by the 'smoke' marker)."""
+
 import pytest
 from app.planner.generator import generate_plan
 from app.config import LLM_API_KEY

@@ -1,3 +1,5 @@
+"""Tests for the interactive UI: display rendering, menu flows, and quit handling."""
+
 from unittest.mock import patch, MagicMock
 import pytest
 from app.ui.display import (

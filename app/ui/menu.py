@@ -1,3 +1,12 @@
+"""Interactive ``questionary`` menu — the default no-subcommand experience.
+
+``run_main_menu`` is the top-level loop; the ``run_*`` functions drive the
+summarize / recommend / plan / settings flows, delegating prompts to
+``app.ui.prompts`` and rendering to ``app.ui.display``. The menu flows enable the
+LLM rerank/summarize/price-estimation features by default for a richer result
+than the bare CLI flags.
+"""
+
 import questionary
 from app.i18n.strings import t
 from app.ui.display import (
@@ -81,6 +90,7 @@ def _recommend_for_types(region, place_types, prefs, profile, lang, top_n, budge
 
 
 def run_summarize(lang: str = "tr"):
+    """Prompt for a YouTube URL and run the summarize flow ('q' to go back)."""
     url = questionary.text(
         "YouTube URL (q to go back):" if lang == "en" else "YouTube URL (geri dönmek için q):",
     ).ask()
@@ -90,6 +100,7 @@ def run_summarize(lang: str = "tr"):
 
 
 def _browse_by_category(region: str, lang: str):
+    """Category-browse flow: pick categories, refine prefs, then show results by category."""
     category_ids = _ask_categories(lang)
     if not category_ids:
         return
@@ -126,6 +137,7 @@ def _browse_by_category(region: str, lang: str):
 
 
 def _browse_by_type(region: str, lang: str):
+    """Place-type browse flow: pick types/count/profile/prefs, then show ranked results."""
     place_types = _ask_place_types(lang)
     if place_types is None:
         return
@@ -146,6 +158,7 @@ def _browse_by_type(region: str, lang: str):
 
 
 def run_recommend(lang: str = "tr"):
+    """Recommend flow: ask for a region, then branch to type- or category-browse."""
     region = questionary.text(
         "Region (q to go back):" if lang == "en" else "Bölge (geri dönmek için q):",
     ).ask()
@@ -195,6 +208,7 @@ def _ask_trip_basics(lang: str):
 
 
 def run_plan(lang: str = "tr"):
+    """Plan flow: gather trip basics + optional video + recommendations, then build an itinerary."""
     region = questionary.text(
         "Region (q to go back):" if lang == "en" else "Bölge (geri dönmek için q):",
     ).ask()
@@ -246,6 +260,7 @@ def run_plan(lang: str = "tr"):
 
 
 def run_settings(_lang: str) -> str:
+    """Prompt for the interface language and return the new code (``en``/``tr``)."""
     choices = ["English", "Türkçe"]
     selected = questionary.select(
         "Language / Dil:",
@@ -257,6 +272,11 @@ def run_settings(_lang: str) -> str:
 
 
 def run_main_menu():
+    """Run the top-level interactive loop until the user quits.
+
+    Each iteration shows the menu, dispatches to a ``run_*`` flow, surfaces any
+    error without crashing, and pauses before looping. Language can be switched
+    via the settings option."""
     lang = "tr"
     while True:
         show_welcome(lang)

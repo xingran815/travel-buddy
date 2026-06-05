@@ -1,3 +1,5 @@
+"""Tests for the bilingual string table and the t() lookup helper (fallbacks and placeholders)."""
+
 import pytest
 from app.i18n.strings import t, STRINGS
 

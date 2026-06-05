@@ -1,3 +1,10 @@
+"""FastAPI application: mounts every router under ``/api`` with open CORS.
+
+The SwiftUI client (and any other front-end) talks to this app; CORS is wide
+open because it's intended to run locally alongside the client. Launch with
+``uvicorn app.server.main:app``.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

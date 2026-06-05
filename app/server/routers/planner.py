@@ -1,3 +1,5 @@
+"""Itinerary endpoint wrapping ``app/planner/generator.generate_plan``."""
+
 import asyncio
 
 from fastapi import APIRouter
@@ -10,6 +12,7 @@ router = APIRouter()
 
 @router.post("/plan")
 async def plan(req: PlanRequest) -> dict:
+    """Generate a travel itinerary and return it with the echoed request params."""
     itinerary = await asyncio.to_thread(
         generate_plan,
         destination=req.destination,

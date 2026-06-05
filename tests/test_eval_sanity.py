@@ -1,3 +1,5 @@
+"""Sanity checks on recommendation output: no closed places, correct score ordering, profile and multi-type behaviour."""
+
 from unittest.mock import patch
 from app.reviews.checker import recommend_places
 from app.reviews.profiles import FACTOR_KEYS
