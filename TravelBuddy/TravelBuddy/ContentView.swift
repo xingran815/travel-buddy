@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var backend: BackendManager
+    @AppStorage("whisperModelReady") private var whisperModelReady = false
     @State private var selection: NavItem? = .home
 
     var body: some View {
@@ -26,22 +27,26 @@ struct ContentView: View {
             .padding(40)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .running:
-            NavigationSplitView {
-                SidebarView(selection: $selection)
-            } detail: {
-                NavigationStack {
-                    switch selection {
-                    case .home, .none: HomeView()
-                    case .summarize:   SummarizeView()
-                    case .recommend:   RecommendView()
-                    case .planner:     PlannerView()
-                    case .profile:     ProfileView()
-                    case .history:     HistoryView()
-                    case .settings:    SettingsView()
+            if !whisperModelReady {
+                SetupView { whisperModelReady = true }
+            } else {
+                NavigationSplitView {
+                    SidebarView(selection: $selection)
+                } detail: {
+                    NavigationStack {
+                        switch selection {
+                        case .home, .none: HomeView()
+                        case .summarize:   SummarizeView()
+                        case .recommend:   RecommendView()
+                        case .planner:     PlannerView()
+                        case .profile:     ProfileView()
+                        case .history:     HistoryView()
+                        case .settings:    SettingsView()
+                        }
                     }
                 }
+                .navigationSplitViewStyle(.balanced)
             }
-            .navigationSplitViewStyle(.balanced)
         }
     }
 

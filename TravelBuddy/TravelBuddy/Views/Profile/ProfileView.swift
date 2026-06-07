@@ -62,22 +62,31 @@ struct ProfileView: View {
                 }
             }
         }
+        .formStyle(.grouped)
         .navigationTitle("Profile")
         .task { await vm.load() }
     }
 
     private var cuisineChips: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 8) {
-            ForEach(vm.cuisineOptions, id: \.self) { cuisine in
-                ChipView(
-                    label: cuisine,
-                    isSelected: vm.cuisinePrefs.contains(cuisine)
-                ) {
-                    if vm.cuisinePrefs.contains(cuisine) {
-                        vm.cuisinePrefs.remove(cuisine)
-                    } else {
-                        vm.cuisinePrefs.insert(cuisine)
+        let options = vm.cuisineOptions
+        let colCount = 4
+        let startIndices = stride(from: 0, to: options.count, by: colCount).map { $0 }
+        return VStack(alignment: .leading, spacing: 8) {
+            ForEach(startIndices, id: \.self) { start in
+                HStack(spacing: 8) {
+                    ForEach(options[start..<Swift.min(start + colCount, options.count)], id: \.self) { cuisine in
+                        ChipView(
+                            label: cuisine,
+                            isSelected: vm.cuisinePrefs.contains(cuisine)
+                        ) {
+                            if vm.cuisinePrefs.contains(cuisine) {
+                                vm.cuisinePrefs.remove(cuisine)
+                            } else {
+                                vm.cuisinePrefs.insert(cuisine)
+                            }
+                        }
                     }
+                    Spacer()
                 }
             }
         }

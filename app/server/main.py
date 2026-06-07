@@ -8,7 +8,7 @@ open because it's intended to run locally alongside the client. Launch with
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.server.routers import summarize, recommend, planner, profile, settings
+from app.server.routers import summarize, recommend, planner, profile, settings, setup
 
 app = FastAPI(title="TravelBuddy API", version="1.0.0")
 
@@ -24,3 +24,4 @@ app.include_router(recommend.router, prefix="/api")
 app.include_router(planner.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(settings.router, prefix="/api")
+app.include_router(setup.router, prefix="/api")
